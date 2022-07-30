@@ -1,0 +1,8 @@
+simIP 127.0.0.1
+PortNumber 19998
+grid_rx 0
+grid_ry 0
+grid_rz 0
+grid_lx 0
+grid_ly 0
+grid_lz 0

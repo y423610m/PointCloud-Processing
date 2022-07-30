@@ -1,0 +1,12 @@
+trans_x -0.304000
+trans_y -0.650000
+trans_z 0.351000
+trans_ax -1.990000
+trans_ay 0.018000
+trans_az -0.418000
+thresh_min_x -0.214000
+thresh_max_x -0.064000
+thresh_min_y -0.500000
+thresh_max_y 0.265000
+thresh_min_z 0.138000
+thresh_max_z 0.453000
