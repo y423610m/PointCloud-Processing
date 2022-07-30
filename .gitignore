@@ -5,6 +5,7 @@ cvui
 PCL1.11.1
 pcd
 opencv
+out
 ./pointpkg/cvui
 ./pointpkg/opencv
 ./pointpkg/PCL1.11.1
