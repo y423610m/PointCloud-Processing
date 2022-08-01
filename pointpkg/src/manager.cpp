@@ -1,16 +1,17 @@
 //operator_side_manager.cpp
 #include <manager.h>
+
 #include <iostream>
 #include <vector>
 
 
 
-Manager::Manager(ros::NodeHandle& nh, int rate) :
-	ros_interface_(new ROSInterface(nh, rate)),
+Manager::Manager() :
+	ros_interface_(new ROSInterface()),
 	coppeliasim_interface_(new CoppeliaSimInterface()),
-	pcl_(new PCL(PCL_XYZRGBA))
+	pcl_(new PCL())
 {
-	std::cout << "Manager constructed" << std::endl;
+	std::cerr << "Manager constructed" << std::endl;
 	pcl_->init(coppeliasim_interface_.get());
 }
 
@@ -24,19 +25,19 @@ void Manager::update() {
 	/////////////////////PointCloudReceiver///////////////////////////////////////
 	//RECEIVER_COLOR_SINGLE or RECEIVER_COLOR_COLORFUL are available for the 4th arguments
 	ros_interface_->update(points_size_, points_, color_, RECEIVER_COLOR_COLORFUL);
-	//std::cout << "ope ros" << std::endl;
+	//std::cerr << "ope ros" << std::endl;
 
 	//ros setcloud z limit
 
 
 	/////////////////////////////PCL//////////////////////////////////////////////
 	pcl_->update(points_size_, points_, color_);
-	//std::cout << "ope pcl" << std::endl;
+	//std::cerr << "ope pcl" << std::endl;
 
 
 	//////////////////////////PointCloudShower////////////////////////////////////
 	coppeliasim_interface_->update(points_size_, points_, color_, COP_FUNC_MAIN);
-	//std::cout << "ope cop" << std::endl;
+	//std::cerr << "ope cop" << std::endl;
 
 	//coppeliasim_interface_->update(points_size_, points_, color_, COP_FUNC_APPEARED);
 	//coppeliasim_interface_->update(pcl_->get_appeared_points_size(), pcl_->get_appeared_points(), nullptr,COP_FUNC_APPEARED);

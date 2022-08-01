@@ -32,7 +32,7 @@ private:
 	
 public:
 	//Manager(const Manager&) = delete;
-	Manager(ros::NodeHandle& nh, int rate);
+	Manager();
 	void update();
 	bool check_loop() {
 		return ros_interface_->check_loop() 

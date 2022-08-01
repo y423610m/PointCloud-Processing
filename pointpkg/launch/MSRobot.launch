@@ -1,0 +1,39 @@
+<launch>
+    <group ns="pointcloud_processing">
+        <node pkg="pointpkg" type="pointer" name="pointer_node">
+
+            <param name="MAIN_rate" value="100"/> <!--loop rate-->
+
+            <param name="COMMON_robot_type" value="2"/> <!--1:Cobotta 2:MSRobot-->
+
+
+            <param name="ROS_delay" value="0.1"/> <!--time delay-->
+
+
+            <param name="PCL_pcd_type" value="4"/>
+            <param name="PCL_pcd_target" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcd/MS_xyzrgba_common/tool_blue_half.pcd"/>
+            <param name="PCL_pcd_mask" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcd/MS_xyzrgba_common/tool_target_remover.pcd"/>
+            <param name="PCL_pcd_tip" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcd/MS_xyzrgba_common/tool_1point_tip.pcd"/>
+            <param name="PCL_param_txt" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcl_interface_parameters.txt"/>
+            <param name="PCL_pcd_read" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcd/MS_xyzrgba99"/>
+            <param name="PCL_pcd_write" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcd/MS_xyzrgba99/"/>
+
+            <param name="PCL_enable_read_pcd" value="0"/>
+            <param name="PCL_enable_write_pcd" value="0"/>
+            <param name="PCL_enable_transform" value="0"/>
+            <param name="PCL_enable_passthrough" value="0"/>
+            <param name="PCL_enable_particlefilter" value="0"/>
+            <param name="PCL_enable_detect_with_sim" value="0"/>
+
+
+            <param name="SIM_simIP" value="127.0.0.1"/>
+            <param name="SIM_PortNumber" value="19998"/>
+            <param name="SIM_param_txt" value="C:/Users/y4236/Documents/pcws/src/pointpkg/coppeliasim_interface_parameters.txt"/>
+            <param name="SIM_LABView_connect" value="0"/>
+            <param name="SIM_LabView_IP" value="192.168.1.100"/>
+            <param name="SIM_LabView_Port" value="6430"/>
+
+            <!-- <rosparam command="load" file="$(find robot_solver)/config/CobottaDH.yaml"/> -->
+        </node>
+    </group>
+</launch>

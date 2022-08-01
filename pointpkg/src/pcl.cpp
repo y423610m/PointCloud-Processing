@@ -8,9 +8,11 @@
 #include <fstream>
 #include <algorithm>
 
-#define PL(a) std::cout<<(a)<<std::endl;
+#include "ros_param.h"
+#include "development_commands.h"
 
-PCL::PCL(int option_pcd_type = PCL_XYZ) :
+
+PCL::PCL() :
 
 	//----basic point clouds init---
 	//cloud_xyz_(new pcl::PointCloud<pcl::PointXYZ>),
@@ -30,23 +32,39 @@ PCL::PCL(int option_pcd_type = PCL_XYZ) :
 	cloud_target_remover_ref_downsampled_(new Cloud),
 	Rcenter_ref_(new Cloud)
 	//,viewer(new pcl::visualization::CloudViewer("PCL"))
-	, contact_detector_(new ContactDetector("src/pointpkg/pcd/MS_xyzrgba_common/tool_blue_half.pcd"
-			,"src/pointpkg/pcd/MS_xyzrgba_common/tool_target_remover.pcd"
-			,"src/pointpkg/pcd/MS_xyzrgba_common/tool_1point_tip.pcd"
-			))
+	, contact_detector_(new ContactDetector(ROSParam::getStringParam("PCL_pcd_target")
+											, ROSParam::getStringParam("PCL_pcd_mask")
+											, ROSParam::getStringParam("PCL_pcd_tip")
+											))
 {
-	std::cout << "pcl: constructing" << std::endl;
-
-	pcd_type_ = option_pcd_type;
-	PCL::_load_parameters("src/pointpkg/pcl_interface_parameters.txt");
+	std::cerr << "pcl: constructing" << std::endl;
 
 
-	std::cout << "pcl: constructed" << std::endl;
+	this->_setROSParam();
+
+
+	std::cerr << "pcl: constructed" << std::endl;
 
 }
 
+void PCL::_setROSParam() {
+	pcd_type_ = ROSParam::getIntParam("PCL_pcd_type");
+	folder_read_ = ROSParam::getStringParam("PCL_pcd_read");
+	folder_write_ = ROSParam::getStringParam("PCL_pcd_write");
+	PCL::_load_parameters(ROSParam::getStringParam("PCL_param_txt"));
+
+	enable_ |= ROSParam::getIntParam("PCL_enable_read_pcd") << PCL_ENABLE_READ_PCD;
+	enable_ |= ROSParam::getIntParam("PCL_enable_write_pcd") << PCL_ENABLE_WRITE_PCD;
+	enable_ |= ROSParam::getIntParam("PCL_enable_transform") << PCL_ENABLE_TRANSFORM;
+	enable_ |= ROSParam::getIntParam("PCL_enable_passthrough") << PCL_ENABLE_PASSTHROUGH;
+	enable_ |= ROSParam::getIntParam("PCL_enable_particlefilter") << PCL_ENABLE_PARTICLEFILTER;
+	enable_ |= ROSParam::getIntParam("PCL_enable_detect_with_sim") << PCL_ENABLE_DETECT_WITH_SIM;
+
+	EL(enable_)
+}
+
 PCL::~PCL() {
-	PCL::_save_parameters("src/pointpkg/pcl_interface_parameters.txt");
+	PCL::_save_parameters(ROSParam::getStringParam("PCL_param_txt"));
 }
 
 void PCL::init(CoppeliaSimInterface* coppeliasim_interface) {
@@ -55,6 +73,7 @@ void PCL::init(CoppeliaSimInterface* coppeliasim_interface) {
 
 
 void PCL::update(int& number_of_points, std::vector<float>& points, std::vector<int>& color) {
+
 	cloud_xyzrgba_->clear();
 
 
@@ -65,6 +84,8 @@ void PCL::update(int& number_of_points, std::vector<float>& points, std::vector<
 	//PCL::_read_pcd_file("src/pointpkg/pcd/MS_xyzrgba5/1.pcd", number_of_points, color);
 	//PCL::_read_pcd_file("src/pointpkg/pcd/MS_xyzrgba5/", number_of_points, color);
 	//PCL::_read_pcd_file("src/pointpkg/pcd/MS_xyzrgba_common/tool_blue.pcd", number_of_points, color);
+	PCL::_read_pcd_file(folder_read_, number_of_points, color);
+	
 
 	//ÉJÉÅÉâ->coppeliasimÉÇÉfÉãç¿ïWïœä∑
 	PCL::_transform();
@@ -86,7 +107,7 @@ void PCL::update(int& number_of_points, std::vector<float>& points, std::vector<
 
 
 	//ê⁄êGîªíËÅ@(CoppeliaSim)
-	//PCL::_detect_contact_with_coppeliasim();
+	PCL::_detect_contact_with_coppeliasim();
 
 
 	 
@@ -95,12 +116,12 @@ void PCL::update(int& number_of_points, std::vector<float>& points, std::vector<
 	//PCL::drawResult();
 
 	//pcdÉfÅ[É^Åicloud_xyzrgba_Åjï€ë∂ÅD  ï€ë∂èÍèäéwíËÇÕç≈å„Ç…"/"ñYÇÍÇ∏Ç…
-	//PCL::_write_pcd_file("src/pointpkg/pcd/MS_xyzrgba12/");
+	PCL::_write_pcd_file(folder_write_);
 
-	//pcd->vevtor ïœä∑
+	//pcd->vector ïœä∑
 	PCL::_convert_pcd_to_array(number_of_points, points, color);
 
-	//std::cout << counter << std::endl;
+	//std::cerr << counter << std::endl;
 	
 }
 
@@ -110,7 +131,7 @@ void PCL::_convert_array_to_pcd(int& number_of_points, std::vector<float>& point
 
 	if (pcd_type_ == PCL_XYZ) {
 		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_tmp(new pcl::PointCloud<pcl::PointXYZ>);
-		//std::cout << "array to pcd" << std::endl;
+		//std::cerr << "array to pcd" << std::endl;
 		cloud_tmp->width = number_of_points;
 		cloud_tmp->height = 1;
 		cloud_tmp->is_dense = false;
@@ -123,13 +144,13 @@ void PCL::_convert_array_to_pcd(int& number_of_points, std::vector<float>& point
 			pz = points[3 * i + 2];
 			cloud_tmp->points[i] = pcl::PointXYZ(px, py, pz);
 		}
-		//std::cout << "px"<<px << std::endl;
+		//std::cerr << "px"<<px << std::endl;
 		cloud_xyz_ = cloud_tmp;
-		//std::cout << cloud->size() << std::endl;
+		//std::cerr << cloud->size() << std::endl;
 	}
 	else if(pcd_type_ == PCL_XYZRGB){
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_tmp(new pcl::PointCloud<pcl::PointXYZRGB>);
-		//std::cout << "array to pcd" << std::endl;
+		//std::cerr << "array to pcd" << std::endl;
 		cloud_tmp->width = number_of_points;
 		cloud_tmp->height = 1;
 		cloud_tmp->is_dense = false;
@@ -146,9 +167,9 @@ void PCL::_convert_array_to_pcd(int& number_of_points, std::vector<float>& point
 			b = color[3 * i + 2];
 			cloud_tmp->points[i] = pcl::PointXYZRGB(px, py, pz,r,g,b);
 		}
-		//std::cout << "px"<<px << std::endl;
+		//std::cerr << "px"<<px << std::endl;
 		cloud_xyzrgb_ = cloud_tmp;
-		//std::cout << cloud->size() << std::endl;
+		//std::cerr << cloud->size() << std::endl;
 	}
 	else if (pcd_type_ == PCL_XYZRGBA) {
 		cloud_xyzrgba_->clear();
@@ -166,10 +187,10 @@ void PCL::_convert_array_to_pcd(int& number_of_points, std::vector<float>& point
 			a = 255;
 			cloud_xyzrgba_->push_back(pcl::PointXYZRGBA(px, py, pz, r, g, b, a));
 		}
-		//std::cout << "px"<<px << std::endl;
+		//std::cerr << "px"<<px << std::endl;
 		//cloud_xyzrgba_ = cloud_tmp;
-		//std::cout << cloud->size() << std::endl;
-		//std::cout << "array to pcd  " << cloud_xyzrgba_->size() << std::endl;
+		//std::cerr << cloud->size() << std::endl;
+		//std::cerr << "array to pcd  " << cloud_xyzrgba_->size() << std::endl;
 
 	}
 }
@@ -178,7 +199,7 @@ void PCL::_convert_array_to_pcd(int& number_of_points, std::vector<float>& point
 void PCL::_convert_pcd_to_array(int& number_of_points, std::vector<float>& points, std::vector<int>& color) {
 	if (cloud_xyzrgba_->size() == 0) return;
 
-	//std::cout << "pcd to array" << std::endl;
+	//std::cerr << "pcd to array" << std::endl;
 	points.clear();
 	color.clear();
 
@@ -191,7 +212,7 @@ void PCL::_convert_pcd_to_array(int& number_of_points, std::vector<float>& point
 		}
 		number_of_points = points.size() / 3;
 		//*color = *color;
-		//std::cout<< points.size()/3 <<std::endl;
+		//std::cerr<< points.size()/3 <<std::endl;
 	}
 	else if(pcd_type_ == PCL_XYZRGB){
 		for (int i = 0; i < cloud_xyzrgb_->size(); i++) {
@@ -216,7 +237,7 @@ void PCL::_convert_pcd_to_array(int& number_of_points, std::vector<float>& point
 		}
 
 		number_of_points = points.size() / 3;
-		//std::cout << "                               pcd to array  " << number_of_points << std::endl;
+		//std::cerr << "                               pcd to array  " << number_of_points << std::endl;
 	}
 }
 
@@ -243,7 +264,7 @@ void PCL::_compress() {
 			//frame_++;
 		}
 	}
-	std::cout<< "time for compression   "<<double(clock()-a)/1000 <<std::endl;
+	std::cerr<< "time for compression   "<<double(clock()-a)/1000 <<std::endl;
 }
 
 void PCL::_detect_change(std::vector<int>& color) {
@@ -307,7 +328,7 @@ void PCL::_remove_plane() {
 		seg.setInputCloud(cloud_xyzrgba_);
 		seg.segment(*inliers, *coefficients);
 
-		std::cout << inliers->indices.size() << std::endl;
+		std::cerr << inliers->indices.size() << std::endl;
 		if(inliers->indices.size() > 0.3*cloud_xyzrgba_->size()) {
 			pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_xyz_filtered(new pcl::PointCloud<pcl::PointXYZRGBA>);
 			pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
@@ -328,6 +349,9 @@ void PCL::_remove_plane() {
 }
 
 void PCL::_detect_contact_with_particlefilter() {
+	if ((enable_ & (1 << PCL_ENABLE_PARTICLEFILTER)) == 0) return;
+
+	if (cloud_xyzrgba_->size() == 0) return;
 
 	if (!particle_filter_initialized_) {
 
@@ -405,7 +429,7 @@ void PCL::_detect_contact_with_particlefilter() {
 
 
 	ParticleFilter::PointCloudStatePtr particles = tracker_->getParticles();
-	//std::cout << tracker_->getParticles() << std::endl;
+	//std::cerr << tracker_->getParticles() << std::endl;
 	if (tracker_->getParticles() && new_cloud_ || false)
 	{
 
@@ -422,10 +446,10 @@ void PCL::_detect_contact_with_particlefilter() {
 		//vx = vx / size; sumx = sumx / size; sumx = sumx * sumx;
 		//vy = vy / size; sumy = sumy / size; sumy = sumy * sumy;
 		//vz = vz / size; sumz = sumz / size; sumz = sumz * sumz;
-		//std::cout << "x  ìÒèÊòa  " << vx << "  ïΩãœ2èÊ  " << sumx <<"  ï™éU  "<< vx- sumx << std::endl;//0.001
-		//std::cout << "y  ìÒèÊòa  " << vy << "  ïΩãœ2èÊ  " << sumy << "  ï™éU  " << vy - sumy << std::endl;
-		//std::cout << "z  ìÒèÊòa  " << vz << "  ïΩãœ2èÊ  " << sumz << "  ï™éU  " << vz - sumz << std::endl;
-		//std::cout << ""<<std::endl;
+		//std::cerr << "x  ìÒèÊòa  " << vx << "  ïΩãœ2èÊ  " << sumx <<"  ï™éU  "<< vx- sumx << std::endl;//0.001
+		//std::cerr << "y  ìÒèÊòa  " << vy << "  ïΩãœ2èÊ  " << sumy << "  ï™éU  " << vy - sumy << std::endl;
+		//std::cerr << "z  ìÒèÊòa  " << vz << "  ïΩãœ2èÊ  " << sumz << "  ï™éU  " << vz - sumz << std::endl;
+		//std::cerr << ""<<std::endl;
 
 
 		ParticleXYZRPY result = tracker_->getResult();
@@ -435,7 +459,7 @@ void PCL::_detect_contact_with_particlefilter() {
 
 		contact_detector_->remove_and_detect(cloud_xyzrgba_);
 
-		std::cout << (*particles)[0].weight << std::endl;
+		std::cerr << (*particles)[0].weight << std::endl;
 
 		for (const auto& particle : *particles)
 		{
@@ -508,7 +532,7 @@ void PCL::_recognite() {
 
 	//if (pcl::io::loadPCDFile("src/pointpkg/pcd/MS_xyzrgba_common/tool_target.pcd", *model) < 0) {
 	if (pcl::io::loadPCDFile("src/pointpkg/pcd/MS_xyzrgba_common/model3.pcd", *model) < 0) {
-			std::cout << "Error loading model cloud." << std::endl;
+			std::cerr << "Error loading model cloud." << std::endl;
 	}
 	*scene = *cloud_xyzrgba_;
 	model_ss_ = (0.005f);
@@ -520,12 +544,12 @@ void PCL::_recognite() {
 
 
 	//if (pcl::io::loadPCDFile("milk_color.pcd", *model) < 0){
-	//	std::cout << "Error loading model cloud." << std::endl;
+	//	std::cerr << "Error loading model cloud." << std::endl;
 	//	return;
 	//}
 	//if (pcl::io::loadPCDFile("milk_cartoon_all_small_clorox.pcd", *scene) < 0)
 	//{
-	//	std::cout << "Error loading model cloud." << std::endl;
+	//	std::cerr << "Error loading model cloud." << std::endl;
 	//	return;
 	//}
 	//model_ss_ = (0.01f);
@@ -536,7 +560,7 @@ void PCL::_recognite() {
 	//cg_thresh_ = (5.f);
 
 	//*scene = *cloud_xyzrgba_;
-	std::cout << scene->size() << "   aaa" << std::endl;
+	std::cerr << scene->size() << "   aaa" << std::endl;
 
 
 	//
@@ -554,12 +578,12 @@ void PCL::_recognite() {
 			cg_size_ *= resolution;
 		}
 
-		std::cout << "Model resolution:       " << resolution << std::endl;
-		std::cout << "Model sampling size:    " << model_ss_ << std::endl;
-		std::cout << "Scene sampling size:    " << scene_ss_ << std::endl;
-		std::cout << "LRF support radius:     " << rf_rad_ << std::endl;
-		std::cout << "SHOT descriptor radius: " << descr_rad_ << std::endl;
-		std::cout << "Clustering bin size:    " << cg_size_ << std::endl << std::endl;
+		std::cerr << "Model resolution:       " << resolution << std::endl;
+		std::cerr << "Model sampling size:    " << model_ss_ << std::endl;
+		std::cerr << "Scene sampling size:    " << scene_ss_ << std::endl;
+		std::cerr << "LRF support radius:     " << rf_rad_ << std::endl;
+		std::cerr << "SHOT descriptor radius: " << descr_rad_ << std::endl;
+		std::cerr << "Clustering bin size:    " << cg_size_ << std::endl << std::endl;
 	}
 
 	
@@ -582,12 +606,12 @@ void PCL::_recognite() {
 	uniform_sampling.setInputCloud(model);
 	uniform_sampling.setRadiusSearch(model_ss_);
 	uniform_sampling.filter(*model_keypoints);
-	std::cout << "Model total points: " << model->size() << "; Selected Keypoints: " << model_keypoints->size() << std::endl;
+	std::cerr << "Model total points: " << model->size() << "; Selected Keypoints: " << model_keypoints->size() << std::endl;
 
 	uniform_sampling.setInputCloud(scene);
 	uniform_sampling.setRadiusSearch(scene_ss_);
 	uniform_sampling.filter(*scene_keypoints);
-	std::cout << "Scene total points: " << scene->size() << "; Selected Keypoints: " << scene_keypoints->size() << std::endl;
+	std::cerr << "Scene total points: " << scene->size() << "; Selected Keypoints: " << scene_keypoints->size() << std::endl;
 
 	//return;
 	//
@@ -606,7 +630,7 @@ void PCL::_recognite() {
 	descr_est.setSearchSurface(scene);
 	descr_est.compute(*scene_descriptors);
 
-	std::cout << scene->size() << std::endl;
+	std::cerr << scene->size() << std::endl;
 
 	//return;
 
@@ -634,7 +658,7 @@ void PCL::_recognite() {
 			model_scene_corrs->push_back(corr);
 		}
 	}
-	std::cout << "Correspondences found: " << model_scene_corrs->size() << std::endl;
+	std::cerr << "Correspondences found: " << model_scene_corrs->size() << std::endl;
 
 
 	//
@@ -699,11 +723,11 @@ void PCL::_recognite() {
 	//
 	//  Output results
 	//
-	std::cout << "Model instances found: " << rototranslations.size() << std::endl;
+	std::cerr << "Model instances found: " << rototranslations.size() << std::endl;
 	for (std::size_t i = 0; i < rototranslations.size(); ++i)
 	{
-		std::cout << "\n    Instance " << i + 1 << ":" << std::endl;
-		std::cout << "        Correspondences belonging to this instance: " << clustered_corrs[i].size() << std::endl;
+		std::cerr << "\n    Instance " << i + 1 << ":" << std::endl;
+		std::cerr << "        Correspondences belonging to this instance: " << clustered_corrs[i].size() << std::endl;
 
 		// Print the rotation matrix and translation vector
 		Eigen::Matrix3f rotation = rototranslations[i].block<3, 3>(0, 0);
@@ -780,13 +804,14 @@ void PCL::_recognite() {
 
 	while (!viewer.wasStopped())
 	{
-		//std::cout << "viewer loop" << std::endl;
+		//std::cerr << "viewer loop" << std::endl;
 		viewer.spinOnce();
 	}
 }
 
 //Filter along a specified dimension
 void PCL::_filterPassThrough(){
+	if ((enable_ & (1 << PCL_ENABLE_PASSTHROUGH)) == 0) return;
 	if (cloud_xyzrgba_->size() == 0) return;
 	if (!enable_filterPathThrough) return;
 	//PL(0)
@@ -887,14 +912,14 @@ void PCL::drawResult()
 void PCL::_edit() {
 	//0.0405
 	//0.0825
-	std::cout << "edit" << std::endl;
+	std::cerr << "edit" << std::endl;
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr tmp(new pcl::PointCloud<pcl::PointXYZRGBA>);
 	for (const auto& p : *cloud_xyzrgba_) {
 		if (p.y < 0.) tmp->push_back(p);
 		ZZ = std::max(ZZ, p.z);
 	}
 	cloud_xyzrgba_ = tmp;
-	std::cout << ZZ << std::endl;
+	std::cerr << ZZ << std::endl;
 }
 
 //ïségóp
@@ -915,7 +940,7 @@ void PCL::_RadiusSearch() {
 	if(_RadiusSearch_is_first){
 	target_cloud.reset(new Cloud());
 	if (pcl::io::loadPCDFile(target, *target_cloud) == -1) {
-		std::cout << "pcd file not found" << std::endl;
+		std::cerr << "pcd file not found" << std::endl;
 		exit(-1);
 	}
 	*/
@@ -923,6 +948,7 @@ void PCL::_RadiusSearch() {
 
 //cloud_xyzrgbaÇépê®ïœä∑
 void PCL::_transform() {
+	if ((enable_ & (1 << PCL_ENABLE_TRANSFORM)) == 0) return;
 	if (cloud_xyzrgba_->size() == 0) return;
 
 	Eigen::Affine3f transform = Eigen::Affine3f::Identity();
@@ -952,6 +978,8 @@ void PCL::_transform() {
 
 //CoppeliaSimÇÃÉçÉ{ÉbÉgÉÇÉfÉãÇÃépê®ÇéÊìæÇµÅCê⁄êGîªíËÇ∑ÇÈ
 void PCL::_detect_contact_with_coppeliasim(){
+	if ((enable_ & (1 << PCL_ENABLE_DETECT_WITH_SIM)) == 0) return;
+
 	if (cloud_xyzrgba_->size() == 0) return;
 	////pcd_target, pcd_mask, pcd_tipÇê‚ëŒç¿ïWÇÃå¥ì_Ç…ñﬂÇ∑
 	std::vector<float> RemTP = coppeliasim_interface_->getRemoverTipPose();
@@ -967,13 +995,15 @@ void PCL::_detect_contact_with_coppeliasim(){
 
 //folderì‡ÇÃpcdÇcloud_xyzrgbaÇ…í«â¡
 void PCL::_read_pcd_file(std::string folder, int& number_of_points, std::vector<int>& color) {
+	if ((enable_ & (1 << PCL_ENABLE_READ_PCD)) == 0) return;
+	if (folder == "") return;
 	std::string file;
 	if (folder.find(".pcd") != std::string::npos) file = folder;
 	else {
 		file = folder + std::to_string(cnt_read_);
 		//file += std::to_string(cnt_read_);
 		file += ".pcd";
-		//std::cout << "qwert" << std::endl;
+		//std::cerr << "qwert" << std::endl;
 	}
 
 	if (pcd_type_ == PCL_XYZ) {
@@ -1027,7 +1057,7 @@ void PCL::_read_pcd_file(std::string folder, int& number_of_points, std::vector<
 			//cloud_xyzrgba_ = cloud_tmp;
 			number_of_points = cloud_xyzrgba_->width * cloud_xyzrgba_->height;
 			cnt_read_++;
-			//std::cout << "read" << endl;
+			//std::cerr << "read" << endl;
 		}
 	}
 
@@ -1036,6 +1066,9 @@ void PCL::_read_pcd_file(std::string folder, int& number_of_points, std::vector<
 
 //cloud_xyzrgbaÇpcdÇ∆ÇµÇƒfolderì‡Ç…ï€ë∂
 void PCL::_write_pcd_file(std::string folder) {
+	if ((enable_ & (1 << PCL_ENABLE_WRITE_PCD)) == 0) return;
+
+	if (folder.back() != '/') folder += '/';
 
 	if (cloud_xyzrgba_->size() == 0) return;
 	
@@ -1068,7 +1101,7 @@ void PCL::_load_parameters(std::string file_path) {
 		std::istringstream i_stream(line);
 		std::getline(i_stream, parameter_name, ' ');
 		std::getline(i_stream, value);
-		//std::cout << parameter_name << " " << value << std::endl;
+		//std::cerr << parameter_name << " " << value << std::endl;
 
 		if ( parameter_name=="trans_x")   transformation_parameters_[0] = stof(value);
 		if ( parameter_name=="trans_y")   transformation_parameters_[1] = stof(value);
@@ -1086,7 +1119,7 @@ void PCL::_load_parameters(std::string file_path) {
 
 	}
 
-	std::cout << "pcl; parameters loaded" << std::endl;
+	std::cerr << "pcl; parameters loaded" << std::endl;
 
 	params_read_ = true;
 
@@ -1138,20 +1171,20 @@ ContactDetector::ContactDetector(std::string pcd_target, std::string pcd_mask=""
 	//ÇRÇ¬ÇÃì_åQÇì«Ç›çûÇﬁ
 	cloud_target_init_.reset(new pcl::PointCloud<pcl::PointXYZRGBA>);
 	if (pcl::io::loadPCDFile(pcd_target, *cloud_target_init_) == -1) {
-		std::cout << "remover::remover; pcd target file not found" << std::endl;
+		std::cerr << "remover::remover; pcd target file not found" << std::endl;
 		exit(-1);
 	}
 	cloud_mask_init_.reset(new pcl::PointCloud<pcl::PointXYZRGBA>);
 	if (pcd_mask!="" && pcl::io::loadPCDFile(pcd_mask, *cloud_mask_init_) == -1) {
-		std::cout << "remover::remover; pcd mask file not found" << std::endl;
+		std::cerr << "remover::remover; pcd mask file not found" << std::endl;
 		exit(-1);
 	}
 	cloud_tip_init_.reset(new pcl::PointCloud<pcl::PointXYZRGBA>);
 	if (pcd_tip!="" && pcl::io::loadPCDFile(pcd_tip, *cloud_tip_init_) == -1) {
-		std::cout << "remover::remover; pcd tip file not found" << std::endl;
+		std::cerr << "remover::remover; pcd tip file not found" << std::endl;
 		exit(-1);
 	}
-	std::cout << "ContactDetector::ContactDetector succsessfully read pcd" << std::endl;
+	std::cerr << "ContactDetector::ContactDetector succsessfully read pcd" << std::endl;
 	cloud_target_transformed_ = cloud_target_init_;
 	cloud_mask_transformed_ = cloud_mask_init_;
 	cloud_tip_transformed_ = cloud_tip_init_;
@@ -1160,7 +1193,7 @@ ContactDetector::ContactDetector(std::string pcd_target, std::string pcd_mask=""
 
 //ì«Ç›çûÇÒÇæÉfÅ[É^Çépê®ïœä∑Ç∑ÇÈ  init->transformed
 void ContactDetector::transform_init(float* pos, float* ori, bool inverse) {
-	//std::cout << "ContactDetector::transform_init(): " << " pos-z " << pos[2] << std::endl;
+	//std::cerr << "ContactDetector::transform_init(): " << " pos-z " << pos[2] << std::endl;
 	Eigen::Affine3f transform = Eigen::Affine3f::Identity();
 	transform.translation() << pos[0], pos[1], pos[2];
 	transform.rotate(Eigen::AngleAxisf(ori[0], Eigen::Vector3f::UnitX()));
@@ -1191,16 +1224,16 @@ void ContactDetector::transform_init(const Eigen::Affine3f& transform) {
 
 //épê®ïœä∑çœÇ›ÇÃÉfÅ[É^ÇÇ≥ÇÁÇ…épê®ïœä∑Ç∑ÇÈ  transformed->transformed
 void ContactDetector::transform_rotated(float* pos, float* ori, bool inverse) {
-	//std::cout << "rotated" << std::endl;
-	//for (int i = 0; i < 6; i++) std::cout << pos[i] << " ";
-	//std::cout << endl;
+	//std::cerr << "rotated" << std::endl;
+	//for (int i = 0; i < 6; i++) std::cerr << pos[i] << " ";
+	//std::cerr << endl;
 	Eigen::Affine3f transform = Eigen::Affine3f::Identity();
 	transform.translation() << pos[0], pos[1], pos[2];
-	//std::cout << "transform rotated target" << transform.matrix() << std::endl;
+	//std::cerr << "transform rotated target" << transform.matrix() << std::endl;
 	transform.rotate(Eigen::AngleAxisf(ori[0], Eigen::Vector3f::UnitX()));
 	transform.rotate(Eigen::AngleAxisf(ori[1], Eigen::Vector3f::UnitY()));
 	transform.rotate(Eigen::AngleAxisf(ori[2], Eigen::Vector3f::UnitZ()));
-	//std::cout << "transform rotated target" << transform.matrix() << std::endl;
+	//std::cerr << "transform rotated target" << transform.matrix() << std::endl;
 	if (inverse == true) transform = transform.inverse();
 
 	//pcl::PointCloud<pcl::PointXYZRGBA> cloud_tmp;
@@ -1244,11 +1277,11 @@ void ContactDetector::remove_and_detect(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr&
 	extract.setNegative(true);//red
 	extract.filter(*consensus);
 
-	//std::cout << cloud_xyzrgba->size() << " " << different->size() << " " << consensus->size() <<" "<< newPointIdxVector.size()<< std::endl;
+	//std::cerr << cloud_xyzrgba->size() << " " << different->size() << " " << consensus->size() <<" "<< newPointIdxVector.size()<< std::endl;
 
 	*cloud_xyzrgba = *different;
 	//*cloud_xyzrgba = *cloud_mask_transformed_;
-	//std::cout << cloud_xyzrgba->size() << std::endl;
+	//std::cerr << cloud_xyzrgba->size() << std::endl;
 
 
 	//cloud_xyzrgba = cloud_mask_transformed_;
@@ -1270,18 +1303,18 @@ void ContactDetector::remove_and_detect(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr&
 		float R = 0.01;
 		int num = 200;
 		int n = kdtree.radiusSearch(searchPoint, 0.020, pointIdxRadiusSearch, pointRadiusSquareDistance);
-		//std::cout << "number of nearest point 0.020 " << n << std::endl;
+		//std::cerr << "number of nearest point 0.020 " << n << std::endl;
 		n = kdtree.radiusSearch(searchPoint, 0.015, pointIdxRadiusSearch, pointRadiusSquareDistance);
-		//std::cout << "number of nearest point 0.015 " << n << std::endl;
+		//std::cerr << "number of nearest point 0.015 " << n << std::endl;
 		n = kdtree.radiusSearch(searchPoint, 0.010, pointIdxRadiusSearch, pointRadiusSquareDistance);
-		//std::cout << "number of nearest point 0.010 " << n << std::endl;
+		//std::cerr << "number of nearest point 0.010 " << n << std::endl;
 		n = kdtree.radiusSearch(searchPoint, 0.005, pointIdxRadiusSearch, pointRadiusSquareDistance);
-		//std::cout << "number of nearest point 0.005 " << n << std::endl;
+		//std::cerr << "number of nearest point 0.005 " << n << std::endl;
 
 
 
-		//if (n > num) for (int i = 0; i < int(std::log2(n-num)); i++) std::cout << "##";
-		//std::cout << std::endl;
+		//if (n > num) for (int i = 0; i < int(std::log2(n-num)); i++) std::cerr << "##";
+		//std::cerr << std::endl;
 	}
 	
 	cloud_xyzrgba->push_back(searchPoint);

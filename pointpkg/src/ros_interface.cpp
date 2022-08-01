@@ -7,10 +7,12 @@
 #include <cmath>
 #include <numeric>
 
-ROSInterface::ROSInterface(ros::NodeHandle& nh, int rate) 
-	:rate(rate)
+#include "ros_param.h"
+
+ROSInterface::ROSInterface() 
 {
-	std::cout << "ros_interface: constructing" << std::endl;
+	std::cerr << "ros_interface: constructing" << std::endl;
+
 
 	transformation_parameters_[0] = 1.515*0.;
 	transformation_parameters_[1] = -0.197*0.;
@@ -20,13 +22,16 @@ ROSInterface::ROSInterface(ros::NodeHandle& nh, int rate)
 	threshold_[1] = 0.15;
 	threshold_[2] = 0.089;
 
+	rate = ROSParam::getIntParam("MAIN_rate");
+	delay = ROSParam::getFloatParam("ROS_delay");
+
 	ROSInterface::load_parameters("src/pointpkg/ros_interface_parameters_MSR.txt");
 
 	//ros_sub_pointcloud = nh.subscribe("/camera/depth/color/points", 1, &ROSInterface::ros_CB, this);
-	ros_sub_pointcloud = nh.subscribe("/camera/depth/color/points", 2, &ROSInterface::ros_CB, this);
+	ros_sub_pointcloud = nh_.subscribe("/camera/depth/color/points", 2, &ROSInterface::ros_CB, this);
 	//ros_sub_pointcloud = nh.subscribe("/tdmaker_for_pc/pointcloud/XYZ_p", 1, &ROSInterface::ros_CB, this);
 
-	std::cout << "ros_interface: constructed" << std::endl;
+	std::cerr << "ros_interface: constructed" << std::endl;
 
 }
 
@@ -48,7 +53,7 @@ threshold, trans parameter for filter
 */
 void  ROSInterface::_set_cloud(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int option_color) {
 
-	//std::cout << queue_pc_.size() << std::endl;
+	//std::cerr << queue_pc_.size() << std::endl;
 	points.clear();
 	color.clear();
 	Rdist = 5.0;
@@ -70,7 +75,7 @@ void  ROSInterface::_set_cloud(int& number_of_points, std::vector<float>& points
 			float xmin = 2.0;
 			float zmax = -2.0;
 			float zmin = 2.0;
-			//std::cout << queue_pc_.front()->width << std::endl;
+			//std::cerr << queue_pc_.front()->width << std::endl;
 			for (i = 0; i < queue_pc_.front()->height; i++) {
 				for (j = 0; j < (queue_pc_.front()->width / 20) * 20; j++) {
 					arrayPosition = i * queue_pc_.front()->row_step + j * queue_pc_.front()->point_step;
@@ -120,9 +125,9 @@ void  ROSInterface::_set_cloud(int& number_of_points, std::vector<float>& points
 					}
 				}
 			}
-			//std::cout << "  xwidth  " << xmax - xmin << std::endl;
-			//std::cout << "  zmax " << zmax << std::endl;
-			//std::cout << std::endl;
+			//std::cerr << "  xwidth  " << xmax - xmin << std::endl;
+			//std::cerr << "  zmax " << zmax << std::endl;
+			//std::cerr << std::endl;
 
 		}
 		else {//passthrough filter –³ŒøŽž
@@ -161,7 +166,7 @@ void  ROSInterface::_set_cloud(int& number_of_points, std::vector<float>& points
 				}
 			}
 		}
-		//std::cout << color_[0] << "   "			<< color_[1] << "   "			<< color_[2] << "   " << std::endl;
+		//std::cerr << color_[0] << "   "			<< color_[1] << "   "			<< color_[2] << "   " << std::endl;
 
 		//
 		while (queue_pc_.size() > rate * delay + 0.01) {
@@ -172,16 +177,16 @@ void  ROSInterface::_set_cloud(int& number_of_points, std::vector<float>& points
 		//points = points_;
 		//color = color_;
 
-		//std::cout << Ldist << " " << Rdist << std::endl;
+		//std::cerr << Ldist << " " << Rdist << std::endl;
 
 
 	}
-	//std::cout << "ros ppoints          "<<*ppoints <<"    size "<< number_of_points << std::endl;
+	//std::cerr << "ros ppoints          "<<*ppoints <<"    size "<< number_of_points << std::endl;
 }
 
 void  ROSInterface::_set_cloud2(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int option_color) {
 
-	//std::cout << queue_pc_.size() << std::endl;
+	//std::cerr << queue_pc_.size() << std::endl;
 	points.clear();
 	color.clear();
 	Rdist = 5.0;
@@ -240,7 +245,7 @@ void  ROSInterface::_set_cloud2(int& number_of_points, std::vector<float>& point
 			}
 		}
 	}
-	//std::cout << color_[0] << "   "			<< color_[1] << "   "			<< color_[2] << "   " << std::endl;
+	//std::cerr << color_[0] << "   "			<< color_[1] << "   "			<< color_[2] << "   " << std::endl;
 
 	//
 	while (queue_pc_.size() > (int)(rate * delay + 0.01)+1) {
@@ -251,11 +256,11 @@ void  ROSInterface::_set_cloud2(int& number_of_points, std::vector<float>& point
 	//points = points_;
 	//color = color_;
 
-	//std::cout << Ldist << " " << Rdist << std::endl;
+	//std::cerr << Ldist << " " << Rdist << std::endl;
 
 
 	
-	//std::cout << "ros ppoints          "<<*ppoints <<"    size "<< number_of_points << std::endl;
+	//std::cerr << "ros ppoints          "<<*ppoints <<"    size "<< number_of_points << std::endl;
 }
 
 void ROSInterface::load_parameters(std::string file_path) {
@@ -271,7 +276,7 @@ void ROSInterface::load_parameters(std::string file_path) {
 		std::istringstream i_stream(line);
 		std::getline(i_stream, parameter_name, ' ');
 		std::getline(i_stream, value);
-		//std::cout << parameter_name << " " << value << std::endl;
+		//std::cerr << parameter_name << " " << value << std::endl;
 
 		if (parameter_name == "trans_x")   transformation_parameters_[0] = stof(value);
 		if (parameter_name == "trans_y")   transformation_parameters_[1] = stof(value);
@@ -319,7 +324,7 @@ void ROSInterface::save_parameters(std::string file_path) {
 
 ROSInterface::~ROSInterface() {
 	ROSInterface::save_parameters("src/pointpkg/ros_interface_parameters_MSR.txt");
-	//std::cout << "qqqqq" << std::endl;
+	//std::cerr << "qqqqq" << std::endl;
 }
 
 
@@ -330,6 +335,8 @@ void ROSInterface::_update_dist(double x, double y, double z) {
 	Rdist = std::min(Rdist, dist);
 }
 
+
+
 //compressed image ‚ðopencv‚É•\Ž¦
 /*
 #include <opencv2/highgui/highgui.hpp>
@@ -338,9 +345,9 @@ void imageCallback(const sensor_msgs::CompressedImageConstPtr& msg)
 {
 	try
 	{
-		std::cout << msg->data[0] << std::endl;
+		std::cerr << msg->data[0] << std::endl;
 		cv::Mat image = cv::imdecode(cv::Mat(msg->data), 1);//convert compressed image data to cv::Mat
-		std::cout << " image    "<<image.size() << std::endl;
+		std::cerr << " image    "<<image.size() << std::endl;
 
 		cv::imshow("view", image);
 
@@ -370,8 +377,8 @@ void ROSInterface::ros_CB(const sensor_msgs::PointCloud2 pCloud) {
 	original_points_size_ = pCloud.width * pCloud.height;
 
 	//ros_pointcloud = pCloud;
-	//std::cout<<"asfasgfasdfg"<<std::endl;
-	//std::cout << pCloud.fields[1].offset << "    ros CB" << std::endl;
+	//std::cerr<<"asfasgfasdfg"<<std::endl;
+	//std::cerr << pCloud.fields[1].offset << "    ros CB" << std::endl;
 	int arrayPosition, arrayPosX, arrayPosY, arrayPosZ;
 	unsigned int i, j;
 	union { int i; float f; } x;
@@ -460,7 +467,7 @@ int main()
 		rs2::frame depth_frame = frames.get_depth_frame();
 
 		auto tmp = (void*)ir_frame.get_data();
-		std::cout << tmp << std::endl;
+		std::cerr << tmp << std::endl;
 
 		// Creating OpenCV Matrix from a color image
 		//Mat color(Size(640, 480), CV_8UC3, (void*)color_frame.get_data(), Mat::AUTO_STEP);

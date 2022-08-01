@@ -6,7 +6,7 @@ using namespace std;
 LabViewInterface::LabViewInterface(PCSTR IP, int PORT)
 	:vf(vector<float>(10))
 {
-	std::cout << "labview_interface: constructing" << std::endl;
+	std::cerr << "labview_interface: constructing" << std::endl;
 
 	//winsock2の初期化
 	WSAStartup(MAKEWORD(2, 0), &wsaData);
@@ -26,10 +26,10 @@ LabViewInterface::LabViewInterface(PCSTR IP, int PORT)
 	memset(buf, 0, MAX_BUF_SIZE);
 	send(sock, "Eabc1;", MAX_BUF_SIZE, 0);
 	recv(sock, buf, MAX_BUF_SIZE, 0);
-	std::cout << "first buf " << buf <<"#####"<< std::endl;
+	std::cerr << "first buf " << buf <<"#####"<< std::endl;
 
 	constructed = true;
-	std::cout << "labview_interface: constructed" << std::endl;
+	std::cerr << "labview_interface: constructed" << std::endl;
 
 }
 
@@ -58,7 +58,7 @@ std::vector<float> split(std::string s, int n) {
 
 void LabViewInterface::update() {
 
-//	std::cout << "labview_interface: ";
+//	std::cerr << "labview_interface: ";
 
 	if (!constructed) return;
 
@@ -68,9 +68,9 @@ void LabViewInterface::update() {
 
 	vf = split(buf, 10);
 
-	///////std::cout <<"buf"<<buf << std::endl;
-	//for (int i = 0; i < 10; i++) std::cout << vf[i] << " ";
-	//std::cout << std::endl;
+	///////std::cerr <<"buf"<<buf << std::endl;
+	//for (int i = 0; i < 10; i++) std::cerr << vf[i] << " ";
+	//std::cerr << std::endl;
 
 	for (int i = 0; i < 3; i++) vf[i] /= 1000.;
 
