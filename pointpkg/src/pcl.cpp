@@ -74,6 +74,8 @@ void PCL::init(CoppeliaSimInterface* coppeliasim_interface) {
 
 void PCL::update(int& number_of_points, std::vector<float>& points, std::vector<int>& color) {
 
+	if (enable_ == 0) return;
+
 	cloud_xyzrgba_->clear();
 
 

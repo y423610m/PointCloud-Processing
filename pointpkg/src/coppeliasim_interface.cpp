@@ -100,7 +100,7 @@ void CoppeliaSimInterface::update(int& number_of_points, std::vector<float>& poi
 		threads_.pop_back();
 	}
 
-	//<=thread使っても実行時間あまり変化なし
+	//thread使っても実行時間あまり変化なし
 	if(robot_type_==1) CoppeliaSimInterface::_updateCobotta();
 	else if(robot_type_ == 2) CoppeliaSimInterface::_updateMSRobot();
 

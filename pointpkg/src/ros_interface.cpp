@@ -8,6 +8,7 @@
 #include <numeric>
 
 #include "ros_param.h"
+#include "development_commands.h"
 
 ROSInterface::ROSInterface() 
 {
@@ -25,7 +26,7 @@ ROSInterface::ROSInterface()
 	rate = ROSParam::getIntParam("MAIN_rate");
 	delay = ROSParam::getFloatParam("ROS_delay");
 
-	ROSInterface::load_parameters("src/pointpkg/ros_interface_parameters_MSR.txt");
+	ROSInterface::load_parameters(ROSParam::getStringParam("ROS_param_txt"));
 
 	//ros_sub_pointcloud = nh.subscribe("/camera/depth/color/points", 1, &ROSInterface::ros_CB, this);
 	ros_sub_pointcloud = nh_.subscribe("/camera/depth/color/points", 2, &ROSInterface::ros_CB, this);
@@ -39,6 +40,7 @@ void ROSInterface::ros_CB(const sensor_msgs::PointCloud2& pCloud) {
 	sensor_msgs::PointCloud2* tmp = new sensor_msgs::PointCloud2;
 	*tmp = pCloud;
 	queue_pc_.push(tmp);
+	//EL(queue_pc_.size())
 }
 
 void ROSInterface::update(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int option_color) {
@@ -253,6 +255,7 @@ void  ROSInterface::_set_cloud2(int& number_of_points, std::vector<float>& point
 		queue_pc_.pop();
 	}
 	number_of_points = (int)points.size() / 3;
+	//EL(points.size())
 	//points = points_;
 	//color = color_;
 
@@ -323,7 +326,7 @@ void ROSInterface::save_parameters(std::string file_path) {
 }
 
 ROSInterface::~ROSInterface() {
-	ROSInterface::save_parameters("src/pointpkg/ros_interface_parameters_MSR.txt");
+	ROSInterface::save_parameters(ROSParam::getStringParam("ROS_param_txt"));
 	//std::cerr << "qqqqq" << std::endl;
 }
 

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 
+#include "development_commands.h"
 
 
 Manager::Manager() :
