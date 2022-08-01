@@ -13,7 +13,6 @@
 #endif
 
 #include <point_cloud_shower.h>
-#include <params.h>
 
 extern "C" {
 #include "extApi.h"
@@ -30,7 +29,6 @@ extern "C" {
 
 class CoppeliaSimInterface{
 private:
-	char* file_path;
 
 
 	int ClientID = -1;
@@ -43,6 +41,8 @@ private:
 	//_showCloud()•À—ñˆ——p
 	std::vector<std::thread> threads_;
 	std::mutex mtx_;
+
+	int robot_type_ = 0;
 	
 	//load read parameters
 	bool params_read_ = false;

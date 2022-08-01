@@ -12,25 +12,28 @@
 #include "Eigen/Core"
 #include <Eigen/Geometry>
 
-#define PS(a) std::cout<<(a)<<" ";
-#define PL(a) std::cout<<(a)<<std::endl;
+#include "ros_param.h"
+#include "development_commands.h"
 
 CoppeliaSimInterface::CoppeliaSimInterface() {
-	std::cout << "coppeliasim_interface: constructing" << std::endl;
-	file_path = "src/pointpkg/coppeliasim_interface_parameters.txt";
-	CoppeliaSimInterface::_load_parameters("src/pointpkg/coppeliasim_interface_parameters.txt");
+	std::cerr << "coppeliasim_interface: constructing" << std::endl;
+	CoppeliaSimInterface::_load_parameters(ROSParam::getStringParam("SIM_param_txt"));
+
+	simIP = ROSParam::getStringParam("SIM_simIP");
+	PortNumber = ROSParam::getIntParam("SIM_PortNumber");
 
 	CoppeliaSimInterface::_connect();
 
-	//CoppeliaSimInterface::_initMSRobot();
-	//CoppeliaSimInterface::_initCobotta();
+	robot_type_ = ROSParam::getIntParam("COMMON_robot_type");
+	if(robot_type_==1) CoppeliaSimInterface::_initCobotta();
+	else if(robot_type_ == 2)CoppeliaSimInterface::_initMSRobot();
 
-	std::cout << "coppeliasim_interface: constructed" << std::endl;
+	std::cerr << "coppeliasim_interface: constructed" << std::endl;
 }
 
 CoppeliaSimInterface::~CoppeliaSimInterface() {
 	simxFinish(ClientID);
-	CoppeliaSimInterface::_save_parameters("src/pointpkg/coppeliasim_interface_parameters.txt");
+	CoppeliaSimInterface::_save_parameters(ROSParam::getStringParam("SIM_param_txt"));
 	labview_interface_->~LabViewInterface();
 }
 
@@ -46,7 +49,7 @@ void CoppeliaSimInterface::_load_parameters(std::string file_path) {
 		std::istringstream i_stream(line);
 		std::getline(i_stream, parameter_name, ' ');
 		std::getline(i_stream, value);
-		//std::cout << parameter_name << " " << value << std::endl;
+		//std::cerr << parameter_name << " " << value << std::endl;
 
 		if (parameter_name == "simIP")   simIP = value;
 		if (parameter_name == "PortNumber")   PortNumber = stoi(value);
@@ -79,15 +82,15 @@ void CoppeliaSimInterface::_save_parameters(std::string file_path) {
 }
 
 void CoppeliaSimInterface::_connect() {
-	std::cout << "" << std::endl;
-	std::cout << "(CoppeliaSimInterface.initialize())" << std::endl;
-	std::cout << "     connecting to coppeliasim..." << std::endl;
-	std::cout << "     please start the simulation " << std::endl;
+	std::cerr << "" << std::endl;
+	std::cerr << "(CoppeliaSimInterface.initialize())" << std::endl;
+	std::cerr << "     connecting to coppeliasim..." << std::endl;
+	std::cerr << "     please start the simulation " << std::endl;
 	while (ClientID == -1) {
-		std::cout << "     ClientID  " << ClientID << std::endl;
+		std::cerr << "     ClientID  " << ClientID << std::endl;
 		ClientID = simxStart(&simIP[0], PortNumber, true, true, 2000, 5);
 	}
-	std::cout << "     !!  connected  !!" << std::endl;
+	std::cerr << "     !!  connected  !!" << std::endl;
 }
 
 void CoppeliaSimInterface::update(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int option_function = COP_FUNC_MAIN) {
@@ -97,10 +100,10 @@ void CoppeliaSimInterface::update(int& number_of_points, std::vector<float>& poi
 		threads_.pop_back();
 	}
 
-	//threads_.push_back(std::thread([&]() {
-		CoppeliaSimInterface::_updateMSRobot();//<=thread使っても実行時間あまり変化なし
-		//CoppeliaSimInterface::_updateCobotta();
-	//}));
+	//<=thread使っても実行時間あまり変化なし
+	if(robot_type_==1) CoppeliaSimInterface::_updateCobotta();
+	else if(robot_type_ == 2) CoppeliaSimInterface::_updateMSRobot();
+
 
 	threads_.push_back(std::thread([&]() {
 		std::lock_guard<std::mutex> lock(mtx_);
@@ -112,7 +115,7 @@ void CoppeliaSimInterface::update(int& number_of_points, std::vector<float>& poi
 	//_getPointsFromSim(number_of_points, points, color);
 	//_set_tool_color();
 
-	//std::cout << "cop update" << std::endl;
+	//std::cerr << "cop update" << std::endl;
 	counter++;
 }
 
@@ -121,11 +124,11 @@ void CoppeliaSimInterface::_showCloud(int number_of_points, std::vector<float>& 
 	int n_c = 3 * number_of_points;
 	if (points.size() == 0) {
 		n = 0;
-		//std::cout << "cop points nullptr " << std::endl;
+		//std::cerr << "cop points nullptr " << std::endl;
 	}
 	if (color.size() == 0) {
 		n_c = 0;
-		//std::cout << "cop color nullptr " << std::endl;
+		//std::cerr << "cop color nullptr " << std::endl;
 	}
 
 	if (n > 0) {
@@ -133,7 +136,7 @@ void CoppeliaSimInterface::_showCloud(int number_of_points, std::vector<float>& 
 
 			//double a = clock();
 			simxCallScriptFunction(ClientID, "Point_Cloud_Main", sim_scripttype_childscript, "ShowPointCloud", color.size(), &color[0], points.size(), &points[0], 0, NULL, 0, NULL, 0, NULL, 0, NULL, NULL, NULL, NULL, NULL, simx_opmode_blocking);
-			//std::cout<< "coppeliasim   "<<double(clock()-a)/1000 <<std::endl;
+			//std::cerr<< "coppeliasim   "<<double(clock()-a)/1000 <<std::endl;
 
 		}
 		else if (option_function == COP_FUNC_APPEARED) {
@@ -146,12 +149,12 @@ void CoppeliaSimInterface::_initCobotta() {
 
 
 	CobottaInitialized = true;
-	std::cout << "CoppeliaSimInterface initialized for Cobotta" << std::endl;
+	std::cerr << "CoppeliaSimInterface initialized for Cobotta" << std::endl;
 }
 
 void CoppeliaSimInterface::_updateCobotta() {
 	if (!CobottaInitialized) {
-		std::cout << "CoppeliaSimInterface  for Cobotta  not initialized" << std::endl;
+		std::cerr << "CoppeliaSimInterface  for Cobotta  not initialized" << std::endl;
 		return;
 	}
 
@@ -161,7 +164,13 @@ void CoppeliaSimInterface::_updateCobotta() {
 }
 
 void CoppeliaSimInterface::_initMSRobot() {
-	labview_interface_.reset(new LabViewInterface("192.168.1.100", 6430));
+
+	if (!ROSParam::getIntParam("SIM_LABView_connect")) {
+		cerr << "don't connect to LabView for MSRobot" << endl;
+		return;
+	}
+
+	labview_interface_.reset(new LabViewInterface(ROSParam::getStringParam("SIM_LabView_IP").c_str(), ROSParam::getIntParam("SIM_LabView_Port")));
 
 	//simxGetObjectHandle(ClientID, "ToolColor", &ToolHandle, simx_opmode_blocking);
 
@@ -183,12 +192,12 @@ void CoppeliaSimInterface::_initMSRobot() {
 
 	MSRobotInitialized = true;
 
-	std::cout << "CoppeliaSimInterface initialized for MSRobot" << std::endl;
+	std::cerr << "CoppeliaSimInterface initialized for MSRobot" << std::endl;
 }
 
 void CoppeliaSimInterface::_updateMSRobot() {
 	if (!MSRobotInitialized) {
-		std::cout << "CoppeliaSimInterface  for MSRobot  not initialized" << std::endl;
+		//std::cerr << "CoppeliaSimInterface  for MSRobot  not initialized" << std::endl;
 		return;
 	}
 
@@ -220,8 +229,8 @@ void CoppeliaSimInterface::_getPointsFromSim(int& number_of_points, std::vector<
 	int* color_;
 	float* points_;
 	simxCallScriptFunction(ClientID, "tool", sim_scripttype_childscript, "getPoints", 0, NULL, 0, NULL, 0, NULL, 0, NULL, &n_color, &color_, &n_points, &points_, NULL, NULL, NULL, NULL, simx_opmode_blocking);
-	std::cout << "coppeliasim" << std::endl;
-	//std::cout << points[0] << std::endl;
+	std::cerr << "coppeliasim" << std::endl;
+	//std::cerr << points[0] << std::endl;
 	int CNT = 0;
 	points.clear();
 	color.clear();
@@ -232,11 +241,11 @@ void CoppeliaSimInterface::_getPointsFromSim(int& number_of_points, std::vector<
 	//number_of_points = 1;// n_points / 3;
 	number_of_points = n_points / 3;
 
-	std::cout << points.size() << std::endl;
+	std::cerr << points.size() << std::endl;
 }
 
 void CoppeliaSimInterface::_set_tool_color() {
-	float position[3] = { Params::tool_color_x, 0., 0. };
+	float position[3] = { 0., 0., 0. };
 	simxSetObjectPosition(ClientID, ToolHandle, -1, position, simx_opmode_oneshot);
 }
 
@@ -251,7 +260,7 @@ void CoppeliaSimInterface::_setTipPoseMSRobot() {
 	simxSetJointPosition(ClientID, ArmAxisJoint4, vf[9], simx_opmode_oneshot);
 
 	if (vf[3] == 0.0 && vf[4] == 0.0){
-		std::cout << "labview_interface::_set_tip_pose: " << "TCP 0.0 error" << std::endl;
+		std::cerr << "labview_interface::_set_tip_pose: " << "TCP 0.0 error" << std::endl;
 		return;
 	}
 
@@ -279,14 +288,14 @@ bool CoppeliaSimInterface::check_loop() {
 std::vector<float> CoppeliaSimInterface::getLeftTipPose() {
 	if(MSRobotInitialized) return poseParallelLinkTip;
 
-	std::cout << "CoppeliaSimInterface::getLeftTipPose(): " << "Nothing was initialized"<< std::endl;
+	std::cerr << "CoppeliaSimInterface::getLeftTipPose(): " << "Nothing was initialized"<< std::endl;
 	return poseParallelLinkTip;
 }
 
 std::vector<float> CoppeliaSimInterface::getRemoverTipPose() {
-	//std::cout << RemoverTip<<poseRemoverTip[0] << poseRemoverTip[1] << poseRemoverTip[2] << std::endl;
+	//std::cerr << RemoverTip<<poseRemoverTip[0] << poseRemoverTip[1] << poseRemoverTip[2] << std::endl;
 	if (MSRobotInitialized) return poseRemoverTip;
 
-	std::cout << "CoppeliaSimInterface::getRemoverTipPose: " << "Nothing was initialized" << std::endl;
+	std::cerr << "CoppeliaSimInterface::getRemoverTipPose: " << "Nothing was initialized" << std::endl;
 	return poseRemoverTip;
 }

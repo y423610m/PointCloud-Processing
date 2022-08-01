@@ -1,3 +1,20 @@
+/*
+
+track param robottype
+
+param
+coppeliasim
+labview
+
+coppeliasim getHandle
+
+enable
+
+*/
+
+
+
+
 #include <iostream>
 #include <string>
 #include <math.h>
@@ -10,10 +27,11 @@
 //#include <config.h>
 //#include <not_used/manager.h>
 //#include <not_used/client.h>
-#include <Params.h>
 
 #include "manager.h"
-#include <gui.h>
+#include "gui.h"
+#include "ros_param.h"
+#include "development_commands.h"
 
 
 extern "C" {
@@ -25,13 +43,12 @@ extern "C" {
 int main(int argc, char** argv) {
 	
 	ros::init(argc, argv, "pointer");
-	ros::NodeHandle nh;
-	const int FPS = 100;
-	ros::Rate rate(FPS);
+	ROSParam::init();
 
-	std::unique_ptr<Manager> manager(new Manager(nh, FPS));
+	ros::Rate rate(ROSParam::getIntParam("MAIN_rate"));
+
+	std::unique_ptr<Manager> manager(new Manager());
 	std::unique_ptr<GUI> gui(new GUI(manager.get()));
-
 
 	while (manager->check_loop()){// && gui->check_loop()) {
 

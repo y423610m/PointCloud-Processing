@@ -2,16 +2,24 @@
 #pragma once
 
 #ifndef PCL_XYZ
-#define PCL_XYZ 0
+#define PCL_XYZ 1
 #endif 
 
 #ifndef PCL_XYZRGB
-#define PCL_XYZRGB 1
+#define PCL_XYZRGB 2
 #endif 
 
 #ifndef PCL_XYZRGBA
-#define PCL_XYZRGBA 2
+#define PCL_XYZRGBA 4
 #endif 
+
+#define PCL_ENABLE_READ_PCD 1
+#define PCL_ENABLE_WRITE_PCD 2
+#define PCL_ENABLE_TRANSFORM 3
+#define PCL_ENABLE_PASSTHROUGH 4
+#define PCL_ENABLE_PARTICLEFILTER 5
+#define PCL_ENABLE_DETECT_WITH_SIM 6
+
 
 #include <vector>
 #include <string>
@@ -104,7 +112,6 @@
 #include <pcl/common/transforms.h>
 #include <pcl/console/parse.h>
 
-#include<params.h>
 
 //target
 #include <coppeliasim_interface.h>
@@ -130,7 +137,6 @@ public:
 
 	Eigen::Affine3f init_for_particlefilter();
 
-
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr get_cloud_target() { return cloud_target_transformed_; }
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr get_cloud_mask() { return cloud_mask_transformed_; }
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr get_cloud_tip() { return cloud_tip_transformed_; }
@@ -155,7 +161,7 @@ private:
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz_;
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_xyzrgb_;
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_xyzrgba_;
-	
+
 
 	//detect changes()用
 	//2つのポイントクラウドを比較したときのデータ
@@ -248,8 +254,8 @@ private:
 	int cnt_write_ = 0;
 	int cnt_read_ = 0;
 	//pcd folder
-	std::string filepath = "src/pointpkg/pcd/MS_xyzrgba/";
-	std::string filename = "";
+	std::string folder_read_;
+	std::string folder_write_;
 
 	//transform用
 	double transformation_parameters_[6];//x,y,z,anglex,y,z
@@ -259,6 +265,10 @@ private:
 
 	//target()用
 	std::unique_ptr<ContactDetector> contact_detector_;
+
+	//setROSParam
+	int enable_ = 0;
+
 
 	
 	void _convert_array_to_pcd(int& number_of_points, std::vector<float>& points, std::vector<int>& color);
@@ -282,10 +292,12 @@ private:
 	void _load_parameters(std::string file_path);
 	void _save_parameters(std::string file_path);
 
+	void _setROSParam();
+
 	void _get_tip_pose();
 
 public:
-	PCL(int option_pcd_type);
+	PCL();
 	~PCL();
 	void init(CoppeliaSimInterface* coppeliasim_interface);
 	void update(int& number_of_points, std::vector<float>& points, std::vector<int>& color);

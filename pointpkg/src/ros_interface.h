@@ -20,13 +20,11 @@
 
 
 
-
-
 //ROSからポイントクラウドを受け取り，遅延発生後＆座標変換する
-class ROSInterface{
+class ROSInterface {
 
 private:
-
+	ros::NodeHandle nh_;
 	std::vector<float> points_;
 	std::vector<int> color_;
 	std::queue<sensor_msgs::PointCloud2*> queue_pc_;
@@ -50,7 +48,7 @@ private:
 	//最短ポイントとの距離計算
 	double LeftPose[7];
 	double RightPose[7];
-	double Ldist=1.0, Rdist=1.0;
+	double Ldist = 1.0, Rdist = 1.0;
 	void _update_dist(double x, double y, double z);
 
 	//座標変換あり，thresholdあり
@@ -62,7 +60,7 @@ private:
 	bool params_read_ = false;
 
 public:
-	ROSInterface(ros::NodeHandle& nh, int rate);
+	ROSInterface();
 	~ROSInterface();
 	void update(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int color_option);
 	bool check_loop() { return ros::ok(); }
@@ -74,5 +72,6 @@ public:
 	int get_points_size() { return (int)(points_.size() / 3); };//gui
 	float* get_points() { return &points_[0]; };//pointer to array
 	int* get_points_color(int n) { return &points_color_[n]; }
+
 
 };

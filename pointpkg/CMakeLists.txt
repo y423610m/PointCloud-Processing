@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(pointpkg)
 
+<<<<<<< HEAD
+=======
+## Compile as C++11, supported in ROS Kinetic and newer
+#add_compile_options(-std=c++17)
+
+>>>>>>> d2a403d37841a088506fe82fd0e2fdb3ca2dc47f
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
@@ -63,7 +69,11 @@ src/ros_interface.cpp
 src/coppeliasim_interface.cpp
 src/pcl.cpp
 src/labview_interface.cpp
+<<<<<<< HEAD
 src/params.cpp
+=======
+src/ros_param.cpp
+>>>>>>> d2a403d37841a088506fe82fd0e2fdb3ca2dc47f
 
 #src/not_used/client.cpp
 #src/not_used/manager.cpp
@@ -88,8 +98,12 @@ add_executable(tdmaker_for_pc
 target_link_libraries(tdmaker_for_pc
    ${catkin_LIBRARIES}
 )
+<<<<<<< HEAD
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
+=======
+
+>>>>>>> d2a403d37841a088506fe82fd0e2fdb3ca2dc47f
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)

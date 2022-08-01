@@ -10,7 +10,7 @@ GUI::GUI(Manager* operator_side_manager) :
 	manager_(operator_side_manager)
 	,t(clock())
 {
-	//std::cout << "GUI constructed" << std::endl;
+	//std::cerr << "GUI constructed" << std::endl;
 	cvui::init(WINDOW2_NAME);
 	frame_ = cv::Mat(cv::Size(800, 400), CV_8UC3);
 
@@ -18,7 +18,7 @@ GUI::GUI(Manager* operator_side_manager) :
 }
 
 GUI::~GUI() {
-	delete manager_;
+	//delete manager_;
 }
 
 void GUI::update() {
