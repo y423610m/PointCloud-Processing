@@ -165,7 +165,7 @@ void CoppeliaSimInterface::_updateCobotta() {
 
 void CoppeliaSimInterface::_initMSRobot() {
 
-	if (!ROSParam::getIntParam("SIM_LABView_connect")) {
+	if (!ROSParam::getIntParam("SIM_LabView_connect")) {
 		cerr << "don't connect to LabView for MSRobot" << endl;
 		return;
 	}

@@ -42,6 +42,8 @@ PCL::PCL() :
 
 	this->_setROSParam();
 
+	initialized_ |= 1;
+
 
 	std::cerr << "pcl: constructed" << std::endl;
 
@@ -74,7 +76,7 @@ void PCL::init(CoppeliaSimInterface* coppeliasim_interface) {
 
 void PCL::update(int& number_of_points, std::vector<float>& points, std::vector<int>& color) {
 
-	if (enable_ == 0) return;
+	if (!enable_) return;
 
 	cloud_xyzrgba_->clear();
 
@@ -365,46 +367,98 @@ void PCL::_detect_contact_with_particlefilter() {
 		bin_size.pitch = 0.01f;
 		bin_size.yaw = 0.01f;
 
-		//Set all parameters for  KLDAdaptiveParticleFilterOMPTracker
-		tracker->setMaximumParticleNum(1000);
-		//tracker->setMaximumParticleNum(1000);
-		tracker->setDelta(0.99);
-		tracker->setEpsilon(0.15);
-		tracker->setBinSize(bin_size);
 
-		//Set all parameters for  ParticleFilter
+		std::vector<double> default_step_covariance;
+		std::vector<double> initial_noise_covariance;
+		std::vector<double> default_initial_mean;
+		int MaximumParticleNum;
+		double Delta;
+		double Epsilon;
+		int IterationNum;
+		int ParticleNum;
+		double ResampleLikelihoodThr;
+		
+		if (ROSParam::getIntParam("COMMON_robot_type") == 1) {
+			default_step_covariance = std::vector<double>(6, 0.015 * 0.015);
+			for (int i = 0; i < 3; i++) default_step_covariance[i] *= 0.1;
+			for (int i = 3; i < 6; i++) default_step_covariance[i] *= 40.0;
+			initial_noise_covariance = std::vector<double>(6, 0.00001); // 1 * 6 vector
+			//std::vector<double> default_initial_mean = std::vector<double>{ -0.15 * 1., -0.35 * 1., 0.22 * 1., 0, 0, 0. };// 1 * 6 vector xyzrpy
+			//std::vector<double> default_initial_mean = std::vector<double>{ -0.16 * 1., -0.26 * 1., 0.22 * 0., 0., 0., 0. };// 1 * 6 vector xyzrpy
+			default_initial_mean = std::vector<double>{ -0.15 * 1., -0.30 * 1., 0.27 * 1., 0, 0, 0. };// 1 * 6 vector xyzrpy best for MSRobot
+			MaximumParticleNum = 1000;
+			Delta = 0.99;
+			Epsilon = 0.15;
+			IterationNum = 3;
+			ParticleNum = 100;//300;
+			ResampleLikelihoodThr = 0.0;
+
+
+
+			//Setup coherence object for tracking
+			////////////////////pcl::tracking::NearestPairPointCloudCoherence
+			hsv_coherence->setHWeight(1.0);
+			hsv_coherence->setSWeight(0.2);
+			hsv_coherence->setVWeight(0.2);
+			//distance_coherence->setWeight(0.005);
+
+
+			coherence->addPointCoherence(hsv_coherence);
+			//coherence->addPointCoherence(nearest_pair_coherence);
+			//coherence->addPointCoherence(distance_coherence);
+			coherence->setSearchMethod(search);
+			coherence->setMaximumDistance(0.01);
+		}
+		else {//MSRobot
+			default_step_covariance = std::vector<double>(6, 0.015 * 0.015);
+			for (int i = 0; i < 3; i++) default_step_covariance[i] *= 0.1;
+			for (int i = 3; i < 6; i++) default_step_covariance[i] *= 40.0;
+			initial_noise_covariance = std::vector<double>(6, 0.00001); // 1 * 6 vector
+			//std::vector<double> default_initial_mean = std::vector<double>{ -0.15 * 1., -0.35 * 1., 0.22 * 1., 0, 0, 0. };// 1 * 6 vector xyzrpy
+			//std::vector<double> default_initial_mean = std::vector<double>{ -0.16 * 1., -0.26 * 1., 0.22 * 0., 0., 0., 0. };// 1 * 6 vector xyzrpy
+			default_initial_mean = std::vector<double>{ -0.15 * 1., -0.30 * 1., 0.27 * 1., 0, 0, 0. };// 1 * 6 vector xyzrpy best for MSRobot
+			MaximumParticleNum = 1000;
+			Delta = 0.99;
+			Epsilon = 0.15;
+			IterationNum = 3;
+			ParticleNum = 100;//300;
+			ResampleLikelihoodThr = 0.0;
+
+
+
+			//Setup coherence object for tracking
+			////////////////////pcl::tracking::NearestPairPointCloudCoherence
+			hsv_coherence->setHWeight(1.0);
+			hsv_coherence->setSWeight(0.2);
+			hsv_coherence->setVWeight(0.2);
+			//distance_coherence->setWeight(0.005);
+
+
+			coherence->addPointCoherence(hsv_coherence);
+			//coherence->addPointCoherence(nearest_pair_coherence);
+			//coherence->addPointCoherence(distance_coherence);
+			coherence->setSearchMethod(search);
+			coherence->setMaximumDistance(0.01);
+		}
+
+		//Set all parameters for  KLDAdaptiveParticleFilterOMPTracker
+		tracker->setMaximumParticleNum(MaximumParticleNum);
+		tracker->setDelta(Delta);
+		tracker->setEpsilon(Epsilon);
+		tracker->setBinSize(bin_size);
 		tracker_ = tracker;
+
 		tracker_->setTrans(Eigen::Affine3f::Identity());
-		std::vector<double> default_step_covariance = std::vector<double>(6, 0.015 * 0.015);
-		for (int i = 0; i < 3; i++) default_step_covariance[i] *= 0.1;
-		for (int i = 3; i < 6; i++) default_step_covariance[i] *= 40.0;
-		std::vector<double> initial_noise_covariance = std::vector<double>(6, 0.00001); // 1 * 6 vector
-		//std::vector<double> default_initial_mean = std::vector<double>{ -0.15 * 1., -0.35 * 1., 0.22 * 1., 0, 0, 0. };// 1 * 6 vector xyzrpy
-		std::vector<double> default_initial_mean = std::vector<double>{ -0.15 * 1., -0.30 * 1., 0.27 * 1., 0, 0, 0. };// 1 * 6 vector xyzrpy best for MSRobot
-		//std::vector<double> default_initial_mean = std::vector<double>{ -0.16 * 1., -0.26 * 1., 0.22 * 0., 0., 0., 0. };// 1 * 6 vector xyzrpy
 		tracker_->setStepNoiseCovariance(default_step_covariance);
 		tracker_->setInitialNoiseCovariance(initial_noise_covariance);
 		tracker_->setInitialNoiseMean(default_initial_mean);
-		tracker_->setIterationNum(3);
-		tracker_->setParticleNum(100);
-		//tracker_->setParticleNum(300);
-		tracker_->setResampleLikelihoodThr(0.00);
+		tracker_->setIterationNum(IterationNum);
+		tracker_->setParticleNum(ParticleNum);
+		tracker_->setResampleLikelihoodThr(ResampleLikelihoodThr);
 		tracker_->setUseNormal(false);
 
 
-		//Setup coherence object for tracking
-		////////////////////pcl::tracking::NearestPairPointCloudCoherence
-		hsv_coherence->setHWeight(1.0);
-		hsv_coherence->setSWeight(0.2);
-		hsv_coherence->setVWeight(0.2);
-		//distance_coherence->setWeight(0.005);
 
-
-		coherence->addPointCoherence(hsv_coherence);
-		//coherence->addPointCoherence(nearest_pair_coherence);
-		//coherence->addPointCoherence(distance_coherence);
-		coherence->setSearchMethod(search);
-		coherence->setMaximumDistance(0.01);
 		tracker_->setCloudCoherence(coherence);
 
 
@@ -461,7 +515,7 @@ void PCL::_detect_contact_with_particlefilter() {
 
 		contact_detector_->remove_and_detect(cloud_xyzrgba_);
 
-		std::cerr << (*particles)[0].weight << std::endl;
+		//std::cerr << (*particles)[0].weight << std::endl;
 
 		for (const auto& particle : *particles)
 		{
@@ -1051,6 +1105,7 @@ void PCL::_read_pcd_file(std::string folder, int& number_of_points, std::vector<
 		if (pcl::io::loadPCDFile<pcl::PointXYZRGBA>(file, *cloud_tmp) == -1) //* load the file
 		{
 			PCL_ERROR("Couldn't read file test_pcd.pcd \n");
+			EL(file)
 			cnt_read_ = 0;
 		}
 		else {

@@ -13,12 +13,14 @@
 #define PCL_XYZRGBA 4
 #endif 
 
+
 #define PCL_ENABLE_READ_PCD 1
 #define PCL_ENABLE_WRITE_PCD 2
 #define PCL_ENABLE_TRANSFORM 3
 #define PCL_ENABLE_PASSTHROUGH 4
 #define PCL_ENABLE_PARTICLEFILTER 5
 #define PCL_ENABLE_DETECT_WITH_SIM 6
+// <31
 
 
 #include <vector>
@@ -151,6 +153,8 @@ private:
 	//float now;
 
 	CoppeliaSimInterface* coppeliasim_interface_;
+
+	int initialized_ = 0;
 
 	//pcd‚ÌŽí—Þ. XYZ, XYZRGB, XYZRGBA
 	int pcd_type_ = PCL_XYZ;

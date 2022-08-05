@@ -94,6 +94,16 @@ add_executable(tdmaker_for_pc
 target_link_libraries(tdmaker_for_pc
    ${catkin_LIBRARIES}
 )
+
+
+add_executable(pcd_maker
+src/cad/pcd_maker.cpp
+)
+target_link_libraries(pcd_maker
+   ${catkin_LIBRARIES}
+)
+
+
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
 

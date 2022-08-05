@@ -12,18 +12,18 @@
 
 
             <param name="PCL_pcd_type" value="4"/>
-            <param name="PCL_pcd_target" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcd/MS_xyzrgba_common/tool_blue_half.pcd"/>
-            <param name="PCL_pcd_mask" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcd/MS_xyzrgba_common/tool_target_remover.pcd"/>
-            <param name="PCL_pcd_tip" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcd/MS_xyzrgba_common/tool_1point_tip.pcd"/>
+            <param name="PCL_pcd_target" value="C:/Users/y4236/Documents/pcws/src/pointpkg/src/cad/tool_target.pcd"/>
+            <param name="PCL_pcd_mask" value="C:/Users/y4236/Documents/pcws/src/pointpkg/src/cad/tool_mask.pcd"/>
+            <param name="PCL_pcd_tip" value="C:/Users/y4236/Documents/pcws/src/pointpkg/src/cad/tool_tip.pcd"/>
             <param name="PCL_param_txt" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcl_interface_parameters.txt"/>
-            <param name="PCL_pcd_read" value="C:/Users/y4236/Documents/pcws/src/pointpkg/src/cad/tip.pcd"/>
+            <param name="PCL_pcd_read" value="C:/Users/y4236/Documents/pcws/src/pointpkg/src/cad/tool_mask.pcd"/>
             <param name="PCL_pcd_write" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcd/MS_xyzrgba99/"/>
 
             <param name="PCL_enable_read_pcd" value="1"/>
             <param name="PCL_enable_write_pcd" value="0"/>
             <param name="PCL_enable_transform" value="0"/>
             <param name="PCL_enable_passthrough" value="0"/>
-            <param name="PCL_enable_particlefilter" value="0"/>
+            <param name="PCL_enable_particlefilter" value="1"/>
             <param name="PCL_enable_detect_with_sim" value="0"/>
 
 
