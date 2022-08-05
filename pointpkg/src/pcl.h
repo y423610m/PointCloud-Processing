@@ -127,8 +127,10 @@ private:
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_tip_init_;
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_tip_transformed_;
 
-
-
+	pcl::octree::OctreePointCloudChangeDetector<pcl::PointXYZRGBA> octree;
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_tmp;
+	std::vector<int> newPointIdxVector;
+	pcl::PointIndices::Ptr inliers;
 public:
 	ContactDetector(std::string pcd_target, std::string pcd_mask, std::string pcd_tip);
 

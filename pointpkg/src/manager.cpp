@@ -13,7 +13,7 @@ Manager::Manager() :
 	pcl_(new PCL())
 {
 	std::cerr << "Manager constructed" << std::endl;
-	pcl_->init(coppeliasim_interface_.get());
+	//pcl_->init(coppeliasim_interface_.get());
 }
 
 void Manager::update() {

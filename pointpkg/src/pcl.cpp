@@ -40,6 +40,9 @@ PCL::PCL() :
 	std::cerr << "pcl: constructing" << std::endl;
 
 
+	enable_ |= ROSParam::getIntParam("PCL_enable_PCL");
+	if (!enable_) return;
+
 	this->_setROSParam();
 
 	initialized_ |= 1;
@@ -75,7 +78,7 @@ void PCL::init(CoppeliaSimInterface* coppeliasim_interface) {
 
 
 void PCL::update(int& number_of_points, std::vector<float>& points, std::vector<int>& color) {
-
+	if (!(initialized_ & 1)) return;
 	if (!enable_) return;
 
 	cloud_xyzrgba_->clear();
@@ -380,16 +383,16 @@ void PCL::_detect_contact_with_particlefilter() {
 		
 		if (ROSParam::getIntParam("COMMON_robot_type") == 1) {
 			default_step_covariance = std::vector<double>(6, 0.015 * 0.015);
-			for (int i = 0; i < 3; i++) default_step_covariance[i] *= 0.1;
+			for (int i = 0; i < 3; i++) default_step_covariance[i] *= 0.3;
 			for (int i = 3; i < 6; i++) default_step_covariance[i] *= 40.0;
-			initial_noise_covariance = std::vector<double>(6, 0.00001); // 1 * 6 vector
+			initial_noise_covariance = std::vector<double>(6, 0.0001); // 1 * 6 vector
 			//std::vector<double> default_initial_mean = std::vector<double>{ -0.15 * 1., -0.35 * 1., 0.22 * 1., 0, 0, 0. };// 1 * 6 vector xyzrpy
 			//std::vector<double> default_initial_mean = std::vector<double>{ -0.16 * 1., -0.26 * 1., 0.22 * 0., 0., 0., 0. };// 1 * 6 vector xyzrpy
 			default_initial_mean = std::vector<double>{ -0.15 * 1., -0.30 * 1., 0.27 * 1., 0, 0, 0. };// 1 * 6 vector xyzrpy best for MSRobot
-			MaximumParticleNum = 1000;
+			MaximumParticleNum = 500;
 			Delta = 0.99;
 			Epsilon = 0.15;
-			IterationNum = 3;
+			IterationNum = 2;
 			ParticleNum = 100;//300;
 			ResampleLikelihoodThr = 0.0;
 
@@ -397,9 +400,9 @@ void PCL::_detect_contact_with_particlefilter() {
 
 			//Setup coherence object for tracking
 			////////////////////pcl::tracking::NearestPairPointCloudCoherence
-			hsv_coherence->setHWeight(1.0);
-			hsv_coherence->setSWeight(0.2);
-			hsv_coherence->setVWeight(0.2);
+			hsv_coherence->setHWeight(0.2);
+			hsv_coherence->setSWeight(1.0);
+			hsv_coherence->setVWeight(1.0);
 			//distance_coherence->setWeight(0.005);
 
 
@@ -1216,7 +1219,10 @@ void PCL::_save_parameters(std::string file_path) {
 
 
 // arg:トラッキングしたい対象の点群，　削除用点群，　トラッキングしたい対象の点群の先端位置（1点のみ）
-ContactDetector::ContactDetector(std::string pcd_target, std::string pcd_mask="", std::string pcd_tip="")
+ContactDetector::ContactDetector(std::string pcd_target, std::string pcd_mask="", std::string pcd_tip=""):
+	octree(pcl::octree::OctreePointCloudChangeDetector<pcl::PointXYZRGBA>(0.005))
+	, cloud_tmp(new pcl::PointCloud<pcl::PointXYZRGBA>())
+	, inliers(new pcl::PointIndices())
 {
 	//重ければ点群密度を下げる
 	//pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_tmp(new pcl::PointCloud<pcl::PointXYZRGBA>);
@@ -1294,7 +1300,7 @@ void ContactDetector::transform_rotated(float* pos, float* ori, bool inverse) {
 	if (inverse == true) transform = transform.inverse();
 
 	//pcl::PointCloud<pcl::PointXYZRGBA> cloud_tmp;
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_tmp(new pcl::PointCloud<pcl::PointXYZRGBA>());
+	//pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_tmp(new pcl::PointCloud<pcl::PointXYZRGBA>());
 	cloud_tmp = cloud_target_transformed_;
 	pcl::transformPointCloud(*cloud_tmp, *cloud_target_transformed_, transform);
 	cloud_tmp = cloud_mask_transformed_;
@@ -1308,7 +1314,7 @@ void ContactDetector::remove_and_detect(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr&
 	//return;
 
 	//cloud_ と resultの一致検出
-	pcl::octree::OctreePointCloudChangeDetector<pcl::PointXYZRGBA> octree(0.005);
+	//pcl::octree::OctreePointCloudChangeDetector<pcl::PointXYZRGBA> octree(0.005);
 	octree.setInputCloud(cloud_mask_transformed_);
 	octree.addPointsFromInputCloud();
 	octree.switchBuffers();
@@ -1316,9 +1322,11 @@ void ContactDetector::remove_and_detect(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr&
 	octree.addPointsFromInputCloud();
 
 
-	std::vector<int> newPointIdxVector;
+	//std::vector<int> newPointIdxVector;
+	newPointIdxVector.clear();
 	octree.getPointIndicesFromNewVoxels(newPointIdxVector);
-	pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+	//pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+	inliers->indices.clear();
 	for (int i = 0; i < newPointIdxVector.size(); i++) {
 		inliers->indices.push_back(newPointIdxVector[i]);
 	}
@@ -1336,7 +1344,7 @@ void ContactDetector::remove_and_detect(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr&
 
 	//std::cerr << cloud_xyzrgba->size() << " " << different->size() << " " << consensus->size() <<" "<< newPointIdxVector.size()<< std::endl;
 
-	*cloud_xyzrgba = *different;
+	cloud_xyzrgba = different;
 	//*cloud_xyzrgba = *cloud_mask_transformed_;
 	//std::cerr << cloud_xyzrgba->size() << std::endl;
 

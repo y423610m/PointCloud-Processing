@@ -36,6 +36,7 @@ private:
 	std::string simIP = "127.0.0.1";
 	int counter = 0;
 	bool grids_enabled_[6] = { true, true, true, true, true, true };
+	int initialized_ = 0;
 
 	////////-----for common use--------////////
 	//_showCloud()•À—ñˆ——p

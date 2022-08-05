@@ -17,6 +17,10 @@
 
 CoppeliaSimInterface::CoppeliaSimInterface() {
 	std::cerr << "coppeliasim_interface: constructing" << std::endl;
+
+	initialized_ |= ROSParam::getIntParam("SIM_enable_SIM");
+	if (!initialized_) return;
+
 	CoppeliaSimInterface::_load_parameters(ROSParam::getStringParam("SIM_param_txt"));
 
 	simIP = ROSParam::getStringParam("SIM_simIP");
@@ -94,6 +98,8 @@ void CoppeliaSimInterface::_connect() {
 }
 
 void CoppeliaSimInterface::update(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int option_function = COP_FUNC_MAIN) {
+	if (!initialized_) return;
+
 	//ï¿óÒèàóùjoin
 	while(!threads_.empty()){
 		threads_.back().join();
@@ -281,7 +287,7 @@ void CoppeliaSimInterface::_setTipPoseMSRobot() {
 }
 
 bool CoppeliaSimInterface::check_loop() {
-	if (simxGetConnectionId(ClientID) == -1) return false;
+	if (initialized_ && simxGetConnectionId(ClientID) == -1) return false;
 	return true;
 }
 

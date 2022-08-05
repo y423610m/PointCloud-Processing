@@ -310,7 +310,8 @@ struct PCDMaker{
         cerr<<endl;
     }
 
-    void extract(const vector<bool>& acceptMin, const vector<bool>& acceptMax){
+    template<typename F>
+    void extract(const vector<bool>& acceptMin, const vector<bool>& acceptMax, F isOK){
         ///--------------------外形抽出-----------------------///
         vector<double> abstX, abstY, abstZ;
         abstX.reserve((Mx-mx)/resolution);
@@ -366,7 +367,7 @@ struct PCDMaker{
                 if(acceptMax[i] && maxV[j][k].id!=-1) ac[maxV[j][k].id] = true;
             }
         }
-        rep(i,Vp.size()) if(ac[Vp[i].id]){
+        rep(i,Vp.size()) if(ac[Vp[i].id] && isOK(Vp[i])){
             resultVp.push_back(Vp[i]);
         }
     }
@@ -436,7 +437,7 @@ int main(int argc, char** argv) {
 
     string objname = "sample_cube.obj"; //cin>>filename;
     string pcdname = "result.pcd";
-    vector<unsigned int> RGBA = {200, 200, 200, 0};
+    vector<unsigned int> RGBA = {230, 230, 230, 0};
 
     vector<bool> acceptMax = {false, false, false};
     vector<bool> acceptMin = {true, false, false};
@@ -492,19 +493,25 @@ int main(int argc, char** argv) {
     //-------------------target-----------------------
     //外形を抽出
     acceptMax = { true, true, true };
-    acceptMin = { true, false, true };
+    acceptMin = { true, false, false };
     maker.calcMaxMin();
-    maker.extract(acceptMin, acceptMax);
+    maker.extract(acceptMin, acceptMax, [&](const Vec& Vpi) {
+        //if (Vpi.y <= -0.1) return false;
+        //if (Vpi.z <= -0.005) return false;
+        if (Vpi.y < -0.2) return false;
+        return true;
+        });
     //根本側を消す
-    maker.operate([&](vector<Vec>& resultVp) {
-        rep(i, resultVp.size()) {
-            if (resultVp[i].y <= -0.1) {
-                swap(resultVp[i], resultVp.back());
-                resultVp.pop_back();
-                i--;
-            }
-        }
-       });    
+    //maker.operate([&](vector<Vec>& resultVp) {
+    //    rep(i, resultVp.size()) {
+    //        if (resultVp[i].y <= -0.1) {
+    //        //if (resultVp[i].y <= -0.06) {
+    //            swap(resultVp[i], resultVp.back());
+    //            resultVp.pop_back();
+    //            i--;
+    //        }
+    //    }
+    //   });    
     //save as target
     maker.output(pcdname + "_target.pcd", RGBA);
 
