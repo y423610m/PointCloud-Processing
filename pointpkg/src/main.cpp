@@ -32,10 +32,6 @@ git push https://github.com/y423610m/PointCloud-Processing.git develop
 #include "development_commands.h"
 
 
-extern "C" {
-#include "extApi.h"
-} 
-
 
 
 int main(int argc, char** argv) {
@@ -68,3 +64,18 @@ int main(int argc, char** argv) {
 
 
 ///////////////////////////////////////
+/* プログラム改善点
+--PCLクラスのテンプレート化--
+現状はint pcd_type_で処理変更
+理想はpcl::PointXYZ, pcl::PointXYZRGBA各々にtemplate<> PCL<pcl::PointXYZRGBA>::hoge()に変更
+
+--PCL::_detect_contact_with_particlefilter()用のメンバ変数多すぎ--
+ローカルor別クラスにまとめる
+
+--manager内でnumber_of_points変数必要?--
+std::vector<int> points.size(), color.size()/3などで良さげ
+
+
+
+
+*/

@@ -3,7 +3,8 @@
 
 #include <ros_interface.h>
 #include <coppeliasim_interface.h>
-#include <pcl.h>
+#include <pcl2.h>
+#include <realsense_interface.h>
 
 #include <memory>
 #include <vector>
@@ -14,12 +15,14 @@
 
 class Manager {
 private:
+	typedef pcl::PointXYZRGBA PointType;
 
 	//std::unique_ptr<PointCloudReceiver> point_cloud_receiver_;
 	std::unique_ptr<ROSInterface> ros_interface_;
 	//std::unique_ptr<PointCloudShower> point_cloud_shower_;
 	std::unique_ptr<CoppeliaSimInterface> coppeliasim_interface_;
-	std::unique_ptr<PCL> pcl_;
+	std::unique_ptr<PCL2<PointType> > pcl_;
+	std::unique_ptr<RealSenseInterface> realsense_;
 
 	std::vector<float> points_;
 	std::vector<int> color_;

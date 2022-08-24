@@ -27,6 +27,12 @@ extern "C" {
 #include <vector>
 #include <mutex>
 
+/*
+•`‰æˆ—‚Í’x‚¢‚Ì‚ÅC•`‰æ•”•ª‚Í•À—ñˆ—‚ÅÀs
+
+
+*/
+
 class CoppeliaSimInterface{
 private:
 
@@ -37,6 +43,8 @@ private:
 	int counter = 0;
 	bool grids_enabled_[6] = { true, true, true, true, true, true };
 	int initialized_ = 0;
+	std::vector<float> points_;
+	std::vector<int> color_;
 
 	////////-----for common use--------////////
 	//_showCloud()•À—ñˆ——p
@@ -95,7 +103,7 @@ private:
 	void _connect();
 	void _load_parameters(std::string file_path);
 	void _save_parameters(std::string file_path);
-	void _showCloud(int number_of_points, std::vector<float>& points, std::vector<int>& color, int option_function);
+	void _showCloud(int number_of_points, std::vector<float>& points, std::vector<int>& color);
 	void _getPointsFromSim(int& number_of_points, std::vector<float>& points, std::vector<int>& color);
 	void _set_tool_color();
 
@@ -103,7 +111,7 @@ private:
 public:
 	CoppeliaSimInterface();
 	~CoppeliaSimInterface();
-	void update(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int option_function);
+	void update(int& number_of_points, std::vector<float>& points, std::vector<int>& color);
 	bool check_loop();
 
 	bool* get_grids_enabled(int n) { return &grids_enabled_[n]; }

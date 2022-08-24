@@ -97,24 +97,29 @@ void CoppeliaSimInterface::_connect() {
 	std::cerr << "     !!  connected  !!" << std::endl;
 }
 
-void CoppeliaSimInterface::update(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int option_function = COP_FUNC_MAIN) {
+void CoppeliaSimInterface::update(int& number_of_points, std::vector<float>& points, std::vector<int>& color) {
 	if (!initialized_) return;
 
-	//並列処理join
+	//ひとつ前のループでの並列処理join
 	while(!threads_.empty()){
 		threads_.back().join();
 		threads_.pop_back();
 	}
+
+	//描画処理別スレッド
+	//points_ = points;
+	//color_ = color;
+	threads_.push_back(std::thread([&]() {
+		//配列コピーは時間ロスだけど，結果として速くなる
+		std::lock_guard<std::mutex> lock(mtx_);
+		_showCloud(number_of_points, points, color);
+	}));
 
 	//thread使っても実行時間あまり変化なし
 	if(robot_type_==1) CoppeliaSimInterface::_updateCobotta();
 	else if(robot_type_ == 2) CoppeliaSimInterface::_updateMSRobot();
 
 
-	threads_.push_back(std::thread([&]() {
-		std::lock_guard<std::mutex> lock(mtx_);
-		_showCloud(number_of_points, points, color, option_function);
-	}));
 
 	//_showCloud(number_of_points, points, color, option_function);
 
@@ -125,30 +130,26 @@ void CoppeliaSimInterface::update(int& number_of_points, std::vector<float>& poi
 	counter++;
 }
 
-void CoppeliaSimInterface::_showCloud(int number_of_points, std::vector<float>& points, std::vector<int>& color, int option_function = COP_FUNC_MAIN) {
-	int n = 3 * number_of_points;
-	int n_c = 3 * number_of_points;
-	if (points.size() == 0) {
-		n = 0;
-		//std::cerr << "cop points nullptr " << std::endl;
-	}
-	if (color.size() == 0) {
-		n_c = 0;
-		//std::cerr << "cop color nullptr " << std::endl;
-	}
+void CoppeliaSimInterface::_showCloud(int number_of_points, std::vector<float>& points, std::vector<int>& color) {
+	//int n = 3 * number_of_points;
+	//int n_c = 3 * number_of_points;
+	//if (points.size() == 0) {
+	//	n = 0;
+	//	//std::cerr << "cop points nullptr " << std::endl;
+	//}
+	//if (color.size() == 0) {
+	//	n_c = 0;
+	//	//std::cerr << "cop color nullptr " << std::endl;
+	//}
 
-	if (n > 0) {
-		if (option_function == COP_FUNC_MAIN) {
+	//if (n > 0) {
 
-			//double a = clock();
-			simxCallScriptFunction(ClientID, "Point_Cloud_Main", sim_scripttype_childscript, "ShowPointCloud", color.size(), &color[0], points.size(), &points[0], 0, NULL, 0, NULL, 0, NULL, 0, NULL, NULL, NULL, NULL, NULL, simx_opmode_blocking);
-			//std::cerr<< "coppeliasim   "<<double(clock()-a)/1000 <<std::endl;
+		//double a = clock();
+	EL(points.size());
+		simxCallScriptFunction(ClientID, "Point_Cloud_Main", sim_scripttype_childscript, "ShowPointCloud", color.size(), &color[0], points.size(), &points[0], 0, NULL, 0, NULL, 0, NULL, 0, NULL, NULL, NULL, NULL, NULL, simx_opmode_blocking);
+		//std::cerr<< "coppeliasim   "<<double(clock()-a)/1000 <<std::endl;
 
-		}
-		else if (option_function == COP_FUNC_APPEARED) {
-			//simxCallScriptFunction(ClientID, "PointClouds", sim_scripttype_childscript, "ShowAppearedPointCloud", 0, NULL, n, &points[0], 0, NULL, 0, NULL, 0, NULL, 0, NULL, NULL, NULL, NULL, NULL, simx_opmode_blocking);
-		}
-	}
+	//}
 }
 
 void CoppeliaSimInterface::_initCobotta() {

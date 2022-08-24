@@ -56,6 +56,15 @@ include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 message("## PCL_INCLUDE_DIRS: ${PCL_INCLUDE_DIRS}")
+
+##################################################################
+###############               RealSense                #################
+##################################################################
+set(REALSENSE_INCLUDE_DIRS "C:/Program Files (x86)/Intel RealSense SDK 2.0/include")
+set(REALSENSE_LIBS "C:/Program Files (x86)/Intel RealSense SDK 2.0/lib/x64/realsense2.lib")
+include_directories(${REALSENSE_INCLUDE_DIRS})
+link_directories(${REALSENSE_LIBS})
+
 ##################################################################
 ####################   excutables and link   #####################
 ##################################################################
@@ -65,10 +74,12 @@ src/manager.cpp
 src/gui.cpp
 src/ros_interface.cpp
 src/coppeliasim_interface.cpp
-src/pcl.cpp
+src/pcl2.cpp
 src/labview_interface.cpp
 #src/params.cpp
 src/ros_param.cpp
+
+src/realsense_interface.cpp
 
 
 #src/not_used/client.cpp
@@ -77,7 +88,6 @@ src/ros_param.cpp
 
 )
 
-set(REALSENSE_LIBS "C:/Program Files (x86)/Intel RealSense SDK 2.0/lib/x64/realsense2.lib")
 
 target_link_libraries(pointer
    ${catkin_LIBRARIES}

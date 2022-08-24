@@ -8,9 +8,10 @@
 
 
 Manager::Manager() :
-	ros_interface_(new ROSInterface()),
-	coppeliasim_interface_(new CoppeliaSimInterface()),
-	pcl_(new PCL())
+	ros_interface_(new ROSInterface())
+	,coppeliasim_interface_(new CoppeliaSimInterface())
+	,pcl_(new PCL2<PointType>())
+	,realsense_(new RealSenseInterface())
 {
 	std::cerr << "Manager constructed" << std::endl;
 	//pcl_->init(coppeliasim_interface_.get());
@@ -21,24 +22,30 @@ void Manager::update() {
 	points_.clear();
 	color_.clear();
 
+	auto t = clock();
 
 
 	/////////////////////PointCloudReceiver///////////////////////////////////////
 	//RECEIVER_COLOR_SINGLE or RECEIVER_COLOR_COLORFUL are available for the 4th arguments
-	ros_interface_->update(points_size_, points_, color_, RECEIVER_COLOR_COLORFUL);
+	ros_interface_->update(points_size_, points_, color_);
 	//std::cerr << "ope ros" << std::endl;
+	EL(clock() - t);
 
-	//ros setcloud z limit
+	realsense_->getPointCloud(points_, color_);
+	EL(clock() - t);
 
 
 	/////////////////////////////PCL//////////////////////////////////////////////
 	pcl_->update(points_size_, points_, color_);
 	//std::cerr << "ope pcl" << std::endl;
+	EL(clock() - t);
+
 
 
 	//////////////////////////PointCloudShower////////////////////////////////////
-	coppeliasim_interface_->update(points_size_, points_, color_, COP_FUNC_MAIN);
+	coppeliasim_interface_->update(points_size_, points_, color_);
 	//std::cerr << "ope cop" << std::endl;
+	EL(clock() - t);
 
 	//coppeliasim_interface_->update(points_size_, points_, color_, COP_FUNC_APPEARED);
 	//coppeliasim_interface_->update(pcl_->get_appeared_points_size(), pcl_->get_appeared_points(), nullptr,COP_FUNC_APPEARED);

@@ -25,6 +25,7 @@ ROSInterface::ROSInterface()
 
 	rate = ROSParam::getIntParam("MAIN_rate");
 	delay = ROSParam::getFloatParam("ROS_delay");
+	use_color_ = ROSParam::getIntParam("ROS_use_color");
 
 	ROSInterface::load_parameters(ROSParam::getStringParam("ROS_param_txt"));
 
@@ -43,17 +44,17 @@ void ROSInterface::ros_CB(const sensor_msgs::PointCloud2& pCloud) {
 	//EL(queue_pc_.size())
 }
 
-void ROSInterface::update(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int option_color) {
+void ROSInterface::update(int& number_of_points, std::vector<float>& points, std::vector<int>& color) {
 	//ç¿ïWïœä∑Ç†ÇË
 	//_set_cloud(number_of_points, points, color, option_color);
 	//ç¿ïWïœä∑Ç»Çµ
-	_set_cloud2(number_of_points, points, color, option_color);
+	_set_cloud2(number_of_points, points, color);
 }
 
 /* TO DO
 threshold, trans parameter for filter
 */
-void  ROSInterface::_set_cloud(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int option_color) {
+void  ROSInterface::_set_cloud(int& number_of_points, std::vector<float>& points, std::vector<int>& color) {
 
 	//std::cerr << queue_pc_.size() << std::endl;
 	points.clear();
@@ -103,7 +104,7 @@ void  ROSInterface::_set_cloud(int& number_of_points, std::vector<float>& points
 						//_update_dist(X, Y, Z);
 
 
-						if (option_color == RECEIVER_COLOR_COLORFUL) {
+						if (use_color_) {
 							color.push_back(queue_pc_.front()->data[arrayPosRGB + 2]);//r
 							color.push_back(queue_pc_.front()->data[arrayPosRGB + 1]);//g
 							if (queue_pc_.front()->data[arrayPosRGB + 0] >= 0) {
@@ -155,7 +156,7 @@ void  ROSInterface::_set_cloud(int& number_of_points, std::vector<float>& points
 
 					//_update_dist(X,Y,Z);
 
-					if (option_color == RECEIVER_COLOR_COLORFUL) {
+					if (use_color_) {
 						color.push_back(queue_pc_.front()->data[arrayPosRGB + 2]);
 						color.push_back(queue_pc_.front()->data[arrayPosRGB + 1]);
 						color.push_back(queue_pc_.front()->data[arrayPosRGB + 0]);
@@ -186,7 +187,7 @@ void  ROSInterface::_set_cloud(int& number_of_points, std::vector<float>& points
 	//std::cerr << "ros ppoints          "<<*ppoints <<"    size "<< number_of_points << std::endl;
 }
 
-void  ROSInterface::_set_cloud2(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int option_color) {
+void  ROSInterface::_set_cloud2(int& number_of_points, std::vector<float>& points, std::vector<int>& color) {
 
 	//std::cerr << queue_pc_.size() << std::endl;
 	points.clear();
@@ -233,7 +234,7 @@ void  ROSInterface::_set_cloud2(int& number_of_points, std::vector<float>& point
 
 					//_update_dist(X,Y,Z);
 
-					if (option_color == RECEIVER_COLOR_COLORFUL) {
+					if (use_color_) {
 						color.push_back(queue_pc_.front()->data[arrayPosRGB + 2]);
 						color.push_back(queue_pc_.front()->data[arrayPosRGB + 1]);
 						color.push_back(queue_pc_.front()->data[arrayPosRGB + 0]);

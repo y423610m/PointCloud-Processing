@@ -5,6 +5,7 @@
 
 #include <time.h>
 
+#define PCL2DEF 1
 #include <manager.h>
 
 #include <opencv2/opencv.hpp>

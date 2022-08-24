@@ -33,6 +33,7 @@ private:
 	double threshold_[6];//Xmin, Xmax, Ymin,...
 	int original_points_size_;
 	bool passthrough_filter_enabled_ = false;
+	int use_color_ = 0;
 
 
 
@@ -52,9 +53,9 @@ private:
 	void _update_dist(double x, double y, double z);
 
 	//座標変換あり，thresholdあり
-	void _set_cloud(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int color_option);
+	void _set_cloud(int& number_of_points, std::vector<float>& points, std::vector<int>& color);
 	//シンプル版
-	void _set_cloud2(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int color_option);
+	void _set_cloud2(int& number_of_points, std::vector<float>& points, std::vector<int>& color);
 
 	//load and read parameters
 	bool params_read_ = false;
@@ -62,7 +63,7 @@ private:
 public:
 	ROSInterface();
 	~ROSInterface();
-	void update(int& number_of_points, std::vector<float>& points, std::vector<int>& color, int color_option);
+	void update(int& number_of_points, std::vector<float>& points, std::vector<int>& color);
 	bool check_loop() { return ros::ok(); }
 
 	double* get_transformation_parameters(int n) { return &transformation_parameters_[n]; };
