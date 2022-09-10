@@ -17,7 +17,7 @@
 #define PCL_ID_DrawResult 11
 #define PCL_ID_LoadParam 12
 #define PCL_ID_SaveParam 13
-#define PCL_ID_setROSParam 14
+#define PCL_ID_SetROSParam 14
 #define PCL_ID_CvtVecToPCD 15
 #define PCL_ID_CvtPCDToVec 16
 
@@ -117,9 +117,7 @@
 #include <pcl/console/parse.h>
 
 
-//target
-#include "coppeliasim_interface.h"
-#include "contact_detector.h"
+
 
 
 #include <iostream>
@@ -132,7 +130,8 @@
 
 #include "ros_param.h"
 #include "development_commands.h"
-
+#include "coppeliasim_interface.h"
+#include "contact_detector.h"
 
 using namespace pcl::tracking;
 using namespace std::chrono_literals;
@@ -154,14 +153,15 @@ private:
 	std::vector<int> color_;
 	//点群データ（pcd）
 	CloudPtr cloud_main_;
+	CloudPtr cloud_sub_;
 	CoppeliaSimInterface* coppeliasim_interface_;
-	vector<bool> enable_;
-	vector<bool> initialized_;
+	bool enable_[32];
+	bool initialized_[32];
 	std::unique_ptr<ContactDetector2<PointTypeT>> contact_detector_;
 
 
 
-	//folder内のpcdをcloud_xyzrgbaに追加 1
+	//folder内のpcdをcloud_mianに追加 1
 	//read(), write()用
 	int cnt_read_ = 0;
 	std::string folder_read_;
@@ -178,9 +178,8 @@ private:
 		}
 
 
-		CloudPtr cloud_tmp(new pcl::PointCloud<PointTypeT>);
-		//cloud_main_->clear();
-		if (pcl::io::loadPCDFile<PointTypeT>(file, *cloud_tmp) == -1) //* load the file
+		if(cloud_sub_->size()) cloud_sub_->clear();
+		if (pcl::io::loadPCDFile<PointTypeT>(file, *cloud_sub_) == -1) //* load the file
 		{
 			PCL_ERROR("Couldn't read file test_pcd.pcd \n");
 			EL(file);
@@ -188,7 +187,7 @@ private:
 		}
 		else {
 
-			for (const auto& p : *cloud_tmp) { cloud_main_->push_back(p); }
+			for (const auto& p : *cloud_sub_) { cloud_main_->push_back(p); }
 			//cloud_main_ = cloud_tmp;
 			number_of_points = cloud_main_->width * cloud_main_->height;
 			cnt_read_++;
@@ -198,7 +197,7 @@ private:
 
 
 
-	//cloud_xyzrgbaをpcdとしてfolder内に保存 2
+	//cloud_mianをpcdとしてfolder内に保存 2
 	int cnt_write_ = 0;
 	std::string folder_write_;
 	void _write_pcd_file(std::string folder) {
@@ -228,22 +227,22 @@ private:
 		//transform.rotate(Eigen::AngleAxisf(transformation_parameters_[4], Eigen::Vector3f::UnitY()));
 		//transform.rotate(Eigen::AngleAxisf(transformation_parameters_[5], Eigen::Vector3f::UnitZ()));
 
-		Eigen::Affine3f rotX = Eigen::Affine3f::Identity();
-		rotX.rotate(Eigen::AngleAxisf(transformation_parameters_[3], Eigen::Vector3f::UnitX()));
+		//Eigen::Affine3f rotX = Eigen::Affine3f::Identity();
+		transform.rotate(Eigen::AngleAxisf(transformation_parameters_[3], Eigen::Vector3f::UnitX()));
 
-		Eigen::Affine3f rotY = Eigen::Affine3f::Identity();
-		rotY.rotate(Eigen::AngleAxisf(transformation_parameters_[4], Eigen::Vector3f::UnitY()));
+		//Eigen::Affine3f rotY = Eigen::Affine3f::Identity();
+		transform.rotate(Eigen::AngleAxisf(transformation_parameters_[4], Eigen::Vector3f::UnitY()));
 
-		Eigen::Affine3f rotZ = Eigen::Affine3f::Identity();
-		rotZ.rotate(Eigen::AngleAxisf(transformation_parameters_[5], Eigen::Vector3f::UnitZ()));
+		//Eigen::Affine3f rotZ = Eigen::Affine3f::Identity();
+		transform.rotate(Eigen::AngleAxisf(transformation_parameters_[5], Eigen::Vector3f::UnitZ()));
 
-		CloudPtr cloud_tmp(new Cloud());
 
-		pcl::transformPointCloud(*cloud_main_, *cloud_tmp, rotX);
-		pcl::transformPointCloud(*cloud_tmp, *cloud_main_, rotY);
-		pcl::transformPointCloud(*cloud_main_, *cloud_tmp, rotZ);
-		pcl::transformPointCloud(*cloud_tmp, *cloud_main_, transform);
-
+		if (cloud_sub_->size()) cloud_sub_->clear();
+		pcl::transformPointCloud(*cloud_main_, *cloud_sub_, transform);
+		//pcl::transformPointCloud(*cloud_tmp, *cloud_main_, rotY);
+		//pcl::transformPointCloud(*cloud_main_, *cloud_tmp, rotZ);
+		//pcl::transformPointCloud(*cloud_tmp, *cloud_main_, transform);
+		cloud_main_.swap(cloud_sub_);
 	}
 
 
@@ -251,8 +250,8 @@ private:
 	//Filter along a specified dimension 4
 	//_filter_path_through()
 	//pcl::PassThrough<pcl::PointXYZRGBA> pass;
-	bool enable_filterPathThrough = true;
-	double threshold_[6] = { -0.3, 0.0, -0.5, 0.0, 0.0, 0.3 };	void _filterPassThrough() {
+	double threshold_[6] = { -0.3, 0.0, -0.5, 0.0, 0.0, 0.3 };	
+	void _filterPassThrough() {
 		if (!enable_[PCL_ID_PassThrough]) return;
 		if (cloud_main_->size() == 0) return;
 		//PointCloud::Ptr cloud_tmp(new PointCloud());
@@ -263,23 +262,25 @@ private:
 		//passX.setFilterLimits(threshold_[0], threshold_[1]);
 		//passX.filter(*cloud_tmp);
 
-
-		CloudPtr cloud_tmp(new Cloud());
+		if (cloud_sub_->size()) cloud_sub_->clear();
 		for (auto p : *cloud_main_) if (threshold_[0] <= p.x && p.x <= threshold_[1] && threshold_[2] <= p.y && p.y <= threshold_[3] && threshold_[4] <= p.z && p.z <= threshold_[5])
-			cloud_tmp->push_back(p);
+			cloud_sub_->push_back(p);
 
-		cloud_main_->clear();
-		for (auto p : *cloud_tmp) cloud_main_->push_back(p);
+		cloud_main_.swap(cloud_sub_);
 
 	}
 
 
 
 	//track()用
+	bool grid_init_ = false;
 	pcl::ApproximateVoxelGrid<PointTypeT> grid_;
 	void _gridSampleApprox(const CloudConstPtr& cloud, Cloud& result, double leaf_size) {
 		//pcl::ApproximateVoxelGrid<pcl::PointXYZRGBA> grid;
-		grid_.setLeafSize(static_cast<float> (leaf_size), static_cast<float> (leaf_size), static_cast<float> (leaf_size));
+		if (!grid_init_) {
+			grid_.setLeafSize(static_cast<float> (leaf_size), static_cast<float> (leaf_size), static_cast<float> (leaf_size));
+			grid_init_ = true;
+		}
 		grid_.setInputCloud(cloud);
 		grid_.filter(result);
 	}
@@ -289,8 +290,6 @@ private:
 	using ParticleFilter = typename ParticleFilterTracker<PointTypeT, ParticleT>;
 	std::mutex mtx_;
 	typename ParticleFilter::Ptr tracker_;
-	CloudPtr transed_ref;
-	CloudPtr transed_ref_downsampled;
 	CloudPtr cloud_downsampled_;
 	CloudPtr target_cloud;
 	typename KLDAdaptiveParticleFilterOMPTracker<PointTypeT, ParticleT>::Ptr tracker;
@@ -299,9 +298,7 @@ private:
 	typename pcl::search::Octree<PointTypeT>::Ptr search;
 	typename HSVColorCoherence<PointTypeT>::Ptr hsv_coherence;
 	typename NearestPairPointCloudCoherence<PointTypeT>::Ptr nearest_pair_coherence;
-	Eigen::Affine3f trans = Eigen::Affine3f::Identity();
 	double downsampling_grid_size_ = 0.002;
-	Eigen::Affine3f transformation;
 	//除去
 	CloudPtr cloud_target_remover_;
 	CloudPtr cloud_target_remover_ref_;
@@ -310,11 +307,20 @@ private:
 	CloudPtr Rcenter_;
 	CloudPtr Rcenter_ref_;
 	void _detect_contact_with_particlefilter() {
+		//https://pcl.readthedocs.io/projects/tutorials/en/latest/tracking.html
 		if (!enable_[PCL_ID_ParticleFilter]) return;
 
 		if (cloud_main_->size() == 0) return;
 
 		if (!initialized_[PCL_ID_ParticleFilter]) {
+
+			tracker.reset(new KLDAdaptiveParticleFilterOMPTracker<PointTypeT, ParticleT>(8));
+			coherence.reset(new ApproxNearestPairPointCloudCoherence<PointTypeT>());
+			distance_coherence.reset(new DistanceCoherence<PointTypeT>());
+			hsv_coherence.reset(new HSVColorCoherence<PointTypeT>());
+			nearest_pair_coherence.reset(new NearestPairPointCloudCoherence<PointTypeT>());
+			search.reset(new pcl::search::Octree<PointTypeT>(0.01));
+			cloud_downsampled_.reset(new Cloud());
 
 			ParticleT bin_size;
 			bin_size.x = 0.01f;
@@ -336,49 +342,21 @@ private:
 			double ResampleLikelihoodThr;
 
 			if (ROSParam::getIntParam("COMMON_robot_type") == 1) {
+				PL("particle filter for Cobotta Tool")
 				default_step_covariance = std::vector<double>(6, 0.015 * 0.015);
-				//for (int i = 0; i < 3; i++) default_step_covariance[i] *= 0.3;
+				for (int i = 0; i < 3; i++) default_step_covariance[i] *= 0.1;
 				for (int i = 3; i < 6; i++) default_step_covariance[i] *= 40.0;
 				initial_noise_covariance = std::vector<double>(6, 0.0001); // 1 * 6 vector
 				//std::vector<double> default_initial_mean = std::vector<double>{ -0.15 * 1., -0.35 * 1., 0.22 * 1., 0, 0, 0. };// 1 * 6 vector xyzrpy
 				//std::vector<double> default_initial_mean = std::vector<double>{ -0.16 * 1., -0.26 * 1., 0.22 * 0., 0., 0., 0. };// 1 * 6 vector xyzrpy
 				default_initial_mean = std::vector<double>{ -0.15 * 1., -0.30 * 1., 0.27 * 1., 0., 0, 1.5 };// 1 * 6 vector xyzrpy best for MSRobot
+				default_initial_mean = std::vector<double>(6, 0.);
+				default_initial_mean[1] = -0.1;
 				MaximumParticleNum = 500;
 				Delta = 0.99;
 				Epsilon = 0.15;
-				IterationNum = 1;
-				ParticleNum = 200;//300;
-				ResampleLikelihoodThr = 0.0;
-
-
-
-				//Setup coherence object for tracking
-				////////////////////pcl::tracking::NearestPairPointCloudCoherence
-				hsv_coherence->setHWeight(0.2);
-				hsv_coherence->setSWeight(1.0);
-				hsv_coherence->setVWeight(1.0);
-				//distance_coherence->setWeight(0.005);
-
-
-				coherence->addPointCoherence(hsv_coherence);
-				//coherence->addPointCoherence(nearest_pair_coherence);
-				//coherence->addPointCoherence(distance_coherence);
-				coherence->setSearchMethod(search);
-				coherence->setMaximumDistance(0.01);
-			}
-			else {//MSRobot
-				default_step_covariance = std::vector<double>(6, 0.015 * 0.015);
-				for (int i = 0; i < 3; i++) default_step_covariance[i] *= 0.1;
-				for (int i = 3; i < 6; i++) default_step_covariance[i] *= 40.0;
-				initial_noise_covariance = std::vector<double>(6, 0.00001); // 1 * 6 vector
-				//std::vector<double> default_initial_mean = std::vector<double>{ -0.15 * 1., -0.35 * 1., 0.22 * 1., 0, 0, 0. };// 1 * 6 vector xyzrpy
-				//std::vector<double> default_initial_mean = std::vector<double>{ -0.16 * 1., -0.26 * 1., 0.22 * 0., 0., 0., 0. };// 1 * 6 vector xyzrpy
-				default_initial_mean = std::vector<double>{ -0.15 * 1., -0.30 * 1., 0.27 * 1., 0, 0, 0. };// 1 * 6 vector xyzrpy best for MSRobot
-				MaximumParticleNum = 1000;
-				Delta = 0.99;
-				Epsilon = 0.15;
-				IterationNum = 3;
-				ParticleNum = 100;//300;
+				IterationNum = 2;
+				ParticleNum = 50;//300;
 				ResampleLikelihoodThr = 0.0;
 
 
@@ -386,8 +364,41 @@ private:
 				//Setup coherence object for tracking
 				////////////////////pcl::tracking::NearestPairPointCloudCoherence
 				hsv_coherence->setHWeight(1.0);
-				hsv_coherence->setSWeight(0.2);
-				hsv_coherence->setVWeight(0.2);
+				hsv_coherence->setSWeight(0.0);
+				hsv_coherence->setVWeight(0.0);
+				coherence->addPointCoherence(hsv_coherence);
+
+				//distance_coherence->setWeight(0.005);
+				//coherence->addPointCoherence(nearest_pair_coherence);
+				//coherence->addPointCoherence(distance_coherence);
+
+				coherence->setSearchMethod(search);
+				coherence->setMaximumDistance(0.01);
+			}
+			else {//MSRobot
+				default_step_covariance = std::vector<double>(6, 0.015 * 0.015);
+				for (int i = 0; i < 3; i++) default_step_covariance[i] *= 0.15;//*0.1
+				for (int i = 3; i < 6; i++) default_step_covariance[i] *= 40.0;//40
+				initial_noise_covariance = std::vector<double>(6, 0.00001); // 1 * 6 vector
+				//std::vector<double> default_initial_mean = std::vector<double>{ -0.15 * 1., -0.35 * 1., 0.22 * 1., 0, 0, 0. };// 1 * 6 vector xyzrpy
+				//std::vector<double> default_initial_mean = std::vector<double>{ -0.16 * 1., -0.26 * 1., 0.22 * 0., 0., 0., 0. };// 1 * 6 vector xyzrpy
+				default_initial_mean = std::vector<double>{ -0.15 * 1., -0.30 * 1., 0.27 * 1., 0, 0, 0. };// 1 * 6 vector xyzrpy best for MSRobot
+				default_initial_mean = std::vector<double>(6, 0.);
+				MaximumParticleNum = 500;//1000
+				Delta = 0.99;//0.99
+				Epsilon = 0.15;//0.15
+				IterationNum = 3;//3
+				ParticleNum = 50;//300;
+				ResampleLikelihoodThr = 0.0;
+
+
+
+				//Setup coherence object for tracking
+				////////////////////pcl::tracking::NearestPairPointCloudCoherence
+				//H:色　S: V:
+				hsv_coherence->setHWeight(1.0);
+				hsv_coherence->setSWeight(0.1);
+				hsv_coherence->setVWeight(0.1);
 				//distance_coherence->setWeight(0.005);
 
 
@@ -395,7 +406,7 @@ private:
 				//coherence->addPointCoherence(nearest_pair_coherence);
 				//coherence->addPointCoherence(distance_coherence);
 				coherence->setSearchMethod(search);
-				coherence->setMaximumDistance(0.01);
+				coherence->setMaximumDistance(0.02);//0.01
 			}
 
 			//Set all parameters for  KLDAdaptiveParticleFilterOMPTracker
@@ -403,8 +414,8 @@ private:
 			tracker->setDelta(Delta);
 			tracker->setEpsilon(Epsilon);
 			tracker->setBinSize(bin_size);
-			tracker_ = tracker;
 
+			tracker_ = tracker;
 			tracker_->setTrans(Eigen::Affine3f::Identity());
 			tracker_->setStepNoiseCovariance(default_step_covariance);
 			tracker_->setInitialNoiseCovariance(initial_noise_covariance);
@@ -413,30 +424,28 @@ private:
 			tracker_->setParticleNum(ParticleNum);
 			tracker_->setResampleLikelihoodThr(ResampleLikelihoodThr);
 			tracker_->setUseNormal(false);
-
-
-
 			tracker_->setCloudCoherence(coherence);
 
-
-			trans = contact_detector_->init_for_particlefilter();
+			Eigen::Affine3f trans = contact_detector_->init_for_particlefilter();
 			tracker_->setTrans(trans);
-			tracker_->setReferenceCloud(contact_detector_->get_cloud_target());
+			tracker_->setReferenceCloud(contact_detector_->get_cloud_target_init());
 
 
 			initialized_[PCL_ID_ParticleFilter] = true;
 			//１ループ目は初期化のみで関数抜ける
+			PL("Particle FIlter initialized")
 			return;
 		}
 
+
 		//std::lock_guard<std::mutex> lock(mtx_);
-		cloud_downsampled_.reset(new Cloud);
-		_gridSampleApprox(cloud_main_, *cloud_downsampled_, downsampling_grid_size_);
-		cloud_main_ = cloud_downsampled_;
+		if (cloud_sub_->size()) cloud_sub_->clear();
+		_gridSampleApprox(cloud_main_, *cloud_sub_, downsampling_grid_size_);
+		//*cloud_main_ = *cloud_downsampled_;
 
 
 		//Track the object
-		tracker_->setInputCloud(cloud_main_);
+		tracker_->setInputCloud(cloud_sub_);
 		tracker_->compute();
 
 
@@ -465,28 +474,30 @@ private:
 
 
 			ParticleXYZRPY result = tracker_->getResult();
-			transformation = tracker_->toEigenMatrix(result);
+			Eigen::Affine3f transformation = tracker_->toEigenMatrix(result);
 
 			contact_detector_->transform_init(transformation);
 
 			contact_detector_->remove_and_detect(cloud_main_);
 
-			//std::cerr << (*particles)[0].weight << std::endl;
-
+			//EL(particles->size())
 			for (const auto& particle : *particles)
 			{
-				PointTypeT point;
+				continue;
+				cloud_main_->push_back(PointTypeT());
+				PointTypeT& point = cloud_main_->back();
 				point.x = particle.x;
 				point.y = particle.y;
 				point.z = particle.z;
-				//point.r = 255;
-				//point.g = 255;
+				point.r = 255;
+				point.g = 255;
 				point.r = (std::min)(255, (int)(100000 * particle.weight));
-				point.g = (std::min)(255, (int)(100000 * particle.weight));
-				cloud_main_->push_back(point);
+				//point.g = (std::min)(255, (int)(100000 * particle.weight));
 			}
 
 		}
+
+		//*cloud_main_ = *(tracker_->getReferenceCloud());
 	}
 
 
@@ -616,15 +627,15 @@ private:
 
 
 
-	//cloud_xyzrgbaを描画．要コンストラクタの初期化 10
-	pcl::visualization::CloudViewer* viewer;
+	//cloud_main_を描画．要コンストラクタの初期化 10
+	pcl::visualization::CloudViewer* cViewer_;
 	void drawResult(){
 		if (!enable_[PCL_ID_DrawResult]) return;
 		if (!initialized_[PCL_ID_DrawResult]) {
-			viewer = new pcl::visualization::CloudViewer("PCL2::DrawResult");
+			cViewer_ = new pcl::visualization::CloudViewer("PCL2::DrawResult");
 			initialized_[PCL_ID_DrawResult] = true;
 		}
-		viewer->showCloud(cloud_main_);
+		cViewer_->showCloud(cloud_main_);
 	}
 
 
@@ -652,6 +663,8 @@ private:
 	pcl::PointCloud<NormalType>::Ptr scene_normals;
 	pcl::PointCloud<DescriptorType>::Ptr model_descriptors;
 	pcl::PointCloud<DescriptorType>::Ptr scene_descriptors;
+	pcl::visualization::PCLVisualizer::Ptr recViewer_;
+
 	double _computeCloudResolution(const CloudConstPtr& cloud)
 	{
 		double res = 0.0;
@@ -659,7 +672,7 @@ private:
 		int nres;
 		std::vector<int> indices(2);
 		std::vector<float> sqr_distances(2);
-		pcl::search::KdTree<PointType> tree;
+		pcl::search::KdTree<PointTypeT> tree;
 		tree.setInputCloud(cloud);
 
 		for (std::size_t i = 0; i < cloud->size(); ++i)
@@ -683,17 +696,19 @@ private:
 		return res;
 	}
 	void _recognite() {
+		//https://pcl.readthedocs.io/projects/tutorials/en/latest/correspondence_grouping.html#correspondence-grouping
+		if (!enable_[PCL_ID_Recognite]) return;
 		if (!initialized_[PCL_ID_Recognite]) {
-			show_keypoints_ = (false);
+			show_keypoints_ = (true);
 			show_correspondences_ = (true);
 			use_cloud_resolution_ = (false);
 			use_hough_ = (false);
 
 
-			model = pcl::PointCloud<PointType>::Ptr(new pcl::PointCloud<PointType>());
-			model_keypoints = pcl::PointCloud<PointType>::Ptr(new pcl::PointCloud<PointType>());
-			scene = pcl::PointCloud<PointType>::Ptr(new pcl::PointCloud<PointType>());
-			scene_keypoints = pcl::PointCloud<PointType>::Ptr(new pcl::PointCloud<PointType>());
+			model.reset(new Cloud);
+			model_keypoints.reset(new Cloud);
+			scene.reset(new Cloud);
+			scene_keypoints.reset(new Cloud);
 			model_normals = pcl::PointCloud<NormalType>::Ptr(new pcl::PointCloud<NormalType>());
 			scene_normals = pcl::PointCloud<NormalType>::Ptr(new pcl::PointCloud<NormalType>());
 			model_descriptors = pcl::PointCloud<DescriptorType>::Ptr(new pcl::PointCloud<DescriptorType>());
@@ -702,16 +717,15 @@ private:
 			if (cloud_main_->size() < 10) return;
 
 			//if (pcl::io::loadPCDFile("src/pointpkg/pcd/MS_xyzrgba_common/tool_target.pcd", *model) < 0) {
-			if (pcl::io::loadPCDFile("src/pointpkg/pcd/MS_xyzrgba_common/model3.pcd", *model) < 0) {
+			if (pcl::io::loadPCDFile(ROSParam::getStringParam("PCL_pcd_target"), *model) < 0) {
 				std::cerr << "Error loading model cloud." << std::endl;
 			}
-			*scene = *cloud_main_;
 			model_ss_ = (0.005f);
 			scene_ss_ = (0.005f);
-			rf_rad_ = (0.01f);
-			descr_rad_ = (0.015f);
-			cg_size_ = (0.01f);
-			cg_thresh_ = (0.5f);
+			rf_rad_ = (0.005f);
+			descr_rad_ = (0.01f);
+			cg_size_ = (0.005f);
+			cg_thresh_ = (0.05f);
 
 
 			//if (pcl::io::loadPCDFile("milk_color.pcd", *model) < 0){
@@ -730,37 +744,55 @@ private:
 			//cg_size_ = (0.01f);
 			//cg_thresh_ = (5.f);
 
-			//*scene = *cloud_main_;
+
+
+			//
+			//  Set up resolution invariance
+			//
+			if (use_cloud_resolution_)
+			{
+				float resolution = static_cast<float> (_computeCloudResolution(model));
+				if (resolution != 0.0f)
+				{
+					model_ss_ *= resolution;
+					scene_ss_ *= resolution;
+					rf_rad_ *= resolution;
+					descr_rad_ *= resolution;
+					cg_size_ *= resolution;
+				}
+
+				std::cerr << "Model resolution:       " << resolution << std::endl;
+				std::cerr << "Model sampling size:    " << model_ss_ << std::endl;
+				std::cerr << "Scene sampling size:    " << scene_ss_ << std::endl;
+				std::cerr << "LRF support radius:     " << rf_rad_ << std::endl;
+				std::cerr << "SHOT descriptor radius: " << descr_rad_ << std::endl;
+				std::cerr << "Clustering bin size:    " << cg_size_ << std::endl << std::endl;
+			}
+
+			pcl::UniformSampling<PointTypeT> uniform_sampling;
+			uniform_sampling.setInputCloud(model);
+			uniform_sampling.setRadiusSearch(model_ss_);
+			uniform_sampling.filter(*model_keypoints);
+			std::cerr << "Model total points: " << model->size() << "; Selected Keypoints: " << model_keypoints->size() << std::endl;
+
+			recViewer_.reset(new pcl::visualization::PCLVisualizer("recViewer"));
+
 			std::cerr << scene->size() << "   aaa" << std::endl;
 			initialized_[PCL_ID_Recognite] = true;
 		}
-
-		//
-	//  Set up resolution invariance
-	//
-		if (use_cloud_resolution_)
-		{
-			float resolution = static_cast<float> (_computeCloudResolution(model));
-			if (resolution != 0.0f)
-			{
-				model_ss_ *= resolution;
-				scene_ss_ *= resolution;
-				rf_rad_ *= resolution;
-				descr_rad_ *= resolution;
-				cg_size_ *= resolution;
-			}
-
-			std::cerr << "Model resolution:       " << resolution << std::endl;
-			std::cerr << "Model sampling size:    " << model_ss_ << std::endl;
-			std::cerr << "Scene sampling size:    " << scene_ss_ << std::endl;
-			std::cerr << "LRF support radius:     " << rf_rad_ << std::endl;
-			std::cerr << "SHOT descriptor radius: " << descr_rad_ << std::endl;
-			std::cerr << "Clustering bin size:    " << cg_size_ << std::endl << std::endl;
+		else {
+			//viewer.removeAllPointClouds();
 		}
+		*scene = *cloud_main_;
+
+
+
+
+
 
 
 		//  Compute Normals
-		pcl::NormalEstimationOMP<PointType, NormalType> norm_est;
+		pcl::NormalEstimationOMP<PointTypeT, NormalType> norm_est;
 		norm_est.setKSearch(100);
 		norm_est.setInputCloud(model);
 		norm_est.compute(*model_normals);
@@ -774,12 +806,7 @@ private:
 		//  Downsample Clouds to Extract keypoints
 
 
-		pcl::UniformSampling<PointType> uniform_sampling;
-		uniform_sampling.setInputCloud(model);
-		uniform_sampling.setRadiusSearch(model_ss_);
-		uniform_sampling.filter(*model_keypoints);
-		std::cerr << "Model total points: " << model->size() << "; Selected Keypoints: " << model_keypoints->size() << std::endl;
-
+		pcl::UniformSampling<PointTypeT> uniform_sampling;
 		uniform_sampling.setInputCloud(scene);
 		uniform_sampling.setRadiusSearch(scene_ss_);
 		uniform_sampling.filter(*scene_keypoints);
@@ -789,7 +816,7 @@ private:
 		//
 	//  Compute Descriptor for keypoints
 	//
-		pcl::SHOTEstimationOMP<PointType, NormalType, DescriptorType> descr_est;
+		pcl::SHOTEstimationOMP<PointTypeT, NormalType, DescriptorType> descr_est;
 		descr_est.setRadiusSearch(descr_rad_);
 
 		descr_est.setInputCloud(model_keypoints);
@@ -848,7 +875,7 @@ private:
 			pcl::PointCloud<RFType>::Ptr model_rf(new pcl::PointCloud<RFType>());
 			pcl::PointCloud<RFType>::Ptr scene_rf(new pcl::PointCloud<RFType>());
 
-			pcl::BOARDLocalReferenceFrameEstimation<PointType, NormalType, RFType> rf_est;
+			pcl::BOARDLocalReferenceFrameEstimation<PointTypeT, NormalType, RFType> rf_est;
 			rf_est.setFindHoles(true);
 			rf_est.setRadiusSearch(rf_rad_);
 
@@ -863,7 +890,7 @@ private:
 			rf_est.compute(*scene_rf);
 
 			//  Clustering
-			pcl::Hough3DGrouping<PointType, PointType, RFType, RFType> clusterer;
+			pcl::Hough3DGrouping<PointTypeT, PointTypeT, RFType, RFType> clusterer;
 			clusterer.setHoughBinSize(cg_size_);
 			clusterer.setHoughThreshold(cg_thresh_);
 			clusterer.setUseInterpolation(true);
@@ -880,7 +907,7 @@ private:
 		}
 		else // Using GeometricConsistency
 		{
-			pcl::GeometricConsistencyGrouping<PointType, PointType> gc_clusterer;
+			pcl::GeometricConsistencyGrouping<PointTypeT, PointTypeT> gc_clusterer;
 			gc_clusterer.setGCSize(cg_size_);
 			gc_clusterer.setGCThreshold(cg_thresh_);
 
@@ -916,11 +943,10 @@ private:
 		//
 	//  Visualization
 	//
-		pcl::visualization::PCLVisualizer viewer("Correspondence Grouping");
-		viewer.addPointCloud(scene, "scene_cloud");
+		//viewer.addPointCloud(scene, "scene_cloud");
 
-		pcl::PointCloud<PointType>::Ptr off_scene_model(new pcl::PointCloud<PointType>());
-		pcl::PointCloud<PointType>::Ptr off_scene_model_keypoints(new pcl::PointCloud<PointType>());
+		CloudPtr off_scene_model(new Cloud);
+		CloudPtr off_scene_model_keypoints(new Cloud);
 
 		if (show_correspondences_ || show_keypoints_)
 		{
@@ -928,19 +954,20 @@ private:
 			pcl::transformPointCloud(*model, *off_scene_model, Eigen::Vector3f(-1, 0, 0), Eigen::Quaternionf(1, 0, 0, 0));
 			pcl::transformPointCloud(*model_keypoints, *off_scene_model_keypoints, Eigen::Vector3f(-1, 0, 0), Eigen::Quaternionf(1, 0, 0, 0));
 
-			pcl::visualization::PointCloudColorHandlerCustom<PointType> off_scene_model_color_handler(off_scene_model, 255, 255, 128);
-			viewer.addPointCloud(off_scene_model, off_scene_model_color_handler, "off_scene_model");
+			pcl::visualization::PointCloudColorHandlerCustom<PointTypeT> off_scene_model_color_handler(off_scene_model, 255, 255, 128);
+			recViewer_->addPointCloud(off_scene_model, off_scene_model_color_handler, "off_scene_model");
+			//cViewer_->showCloud(off_scene_model);
 		}
 
-		if (show_keypoints_)
+		if (false&&show_keypoints_)
 		{
-			pcl::visualization::PointCloudColorHandlerCustom<PointType> scene_keypoints_color_handler(scene_keypoints, 0, 0, 255);
-			viewer.addPointCloud(scene_keypoints, scene_keypoints_color_handler, "scene_keypoints");
-			viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "scene_keypoints");
+			pcl::visualization::PointCloudColorHandlerCustom<PointTypeT> scene_keypoints_color_handler(scene_keypoints, 0, 0, 255);
+			recViewer_->addPointCloud(scene_keypoints, scene_keypoints_color_handler, "scene_keypoints");
+			recViewer_->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "scene_keypoints");
 
-			pcl::visualization::PointCloudColorHandlerCustom<PointType> off_scene_model_keypoints_color_handler(off_scene_model_keypoints, 0, 0, 255);
-			viewer.addPointCloud(off_scene_model_keypoints, off_scene_model_keypoints_color_handler, "off_scene_model_keypoints");
-			viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "off_scene_model_keypoints");
+			pcl::visualization::PointCloudColorHandlerCustom<PointTypeT> off_scene_model_keypoints_color_handler(off_scene_model_keypoints, 0, 0, 255);
+			recViewer_->addPointCloud(off_scene_model_keypoints, off_scene_model_keypoints_color_handler, "off_scene_model_keypoints");
+			recViewer_->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "off_scene_model_keypoints");
 		}
 		// for 0 loop
 		for (std::size_t i = 0; i < rototranslations.size(); ++i)
@@ -948,14 +975,14 @@ private:
 			float r00 = abs(rototranslations[i].block<3, 3>(0, 0)(0, 0) - 1.00);
 			float eps = 0.0001;
 			if (r00 < eps) continue;
-			pcl::PointCloud<PointType>::Ptr rotated_model(new pcl::PointCloud<PointType>());
+			CloudPtr rotated_model(new Cloud);
 			pcl::transformPointCloud(*model, *rotated_model, rototranslations[i]);
 
 			std::stringstream ss_cloud;
 			ss_cloud << "instance" << i;
 
-			pcl::visualization::PointCloudColorHandlerCustom<PointType> rotated_model_color_handler(rotated_model, 255, 0, 0);
-			viewer.addPointCloud(rotated_model, rotated_model_color_handler, ss_cloud.str());
+			pcl::visualization::PointCloudColorHandlerCustom<PointTypeT> rotated_model_color_handler(rotated_model, 255, 0, 0);
+			recViewer_->addPointCloud(rotated_model, rotated_model_color_handler, ss_cloud.str());
 
 			if (show_correspondences_)
 			{
@@ -963,21 +990,22 @@ private:
 				{
 					std::stringstream ss_line;
 					ss_line << "correspondence_line" << i << "_" << j;
-					PointType& model_point = off_scene_model_keypoints->at(clustered_corrs[i][j].index_query);
-					PointType& scene_point = scene_keypoints->at(clustered_corrs[i][j].index_match);
+					PointTypeT& model_point = off_scene_model_keypoints->at(clustered_corrs[i][j].index_query);
+					PointTypeT& scene_point = scene_keypoints->at(clustered_corrs[i][j].index_match);
 
 					//  We are drawing a line for each pair of clustered correspondences found between the model and the scene
-					viewer.addLine<PointType, PointType>(model_point, scene_point, 0, 255, 0, ss_line.str());
+					recViewer_->addLine<PointTypeT, PointTypeT>(model_point, scene_point, 0, 255, 0, ss_line.str());
 				}
 			}
 		}
 
-		return;
 
-		while (!viewer.wasStopped())
+		//return;
+
+		if (!recViewer_->wasStopped())
 		{
-			//std::cerr << "viewer loop" << std::endl;
-			viewer.spinOnce();
+			std::cerr << "viewer loop" << std::endl;
+			recViewer_->spinOnce();
 		}
 	}
 
@@ -1058,14 +1086,16 @@ private:
 		folder_write_ = ROSParam::getStringParam("PCL_pcd_write");
 		this->_load_parameters(ROSParam::getStringParam("PCL_param_txt"));
 
-		enable_[PCL_ID_ReadPCD] = ROSParam::getIntParam("PCL_enable_read_pcd");
-		enable_[PCL_ID_WritePCD] = ROSParam::getIntParam("PCL_enable_write_pcd");
-		enable_[PCL_ID_Transform] = ROSParam::getIntParam("PCL_enable_transform");
-		enable_[PCL_ID_PassThrough] = ROSParam::getIntParam("PCL_enable_passthrough");
-		enable_[PCL_ID_ParticleFilter] = ROSParam::getIntParam("PCL_enable_particlefilter");
-		enable_[PCL_ID_DetectWithSim] = ROSParam::getIntParam("PCL_enable_detect_with_sim");
+		enable_[PCL_ID_ReadPCD] = ROSParam::getIntParam("PCL_enable_ReadPCD");
+		enable_[PCL_ID_WritePCD] = ROSParam::getIntParam("PCL_enable_WritePCD");
+		enable_[PCL_ID_Transform] = ROSParam::getIntParam("PCL_enable_Transform");
+		enable_[PCL_ID_PassThrough] = ROSParam::getIntParam("PCL_enable_PassThrough");
+		enable_[PCL_ID_ParticleFilter] = ROSParam::getIntParam("PCL_enable_ParticleFilter");
+		enable_[PCL_ID_DetectWithSim] = ROSParam::getIntParam("PCL_enable_DetectWithSim");
+		enable_[PCL_ID_Recognite] = ROSParam::getIntParam("PCL_enable_Recognite");
+		enable_[PCL_ID_DrawResult] = ROSParam::getIntParam("PCL_enable_DrawResult");
 
-		EL(enable_)
+		//EL(enable_)
 	}
 
 
@@ -1078,8 +1108,8 @@ private:
 		cloud_main_->resize(points.size() / 3);
 		for (int i = 0; i < points.size() / 3; i++) {
 			(*cloud_main_)[i].x = points[3 * i + 0];
-			(*cloud_main_)[i].y = points[3 * i + 0];
-			(*cloud_main_)[i].z = points[3 * i + 0];
+			(*cloud_main_)[i].y = points[3 * i + 1];
+			(*cloud_main_)[i].z = points[3 * i + 2];
 			(*cloud_main_)[i].r = color[3 * i + 0];
 			(*cloud_main_)[i].g = color[3 * i + 1];
 			(*cloud_main_)[i].b = color[3 * i + 2];
@@ -1151,7 +1181,7 @@ public:
 	int get_disappeared_points_size() { return disappeared_points_.size() / 3; }
 	float* get_disappeared_points() { return &disappeared_points_[0]; }
 	double* get_transformation_parameters(int n) { return &transformation_parameters_[n]; }
-	bool* get_enable_filterPassThrough() { return &enable_filterPathThrough; }
+	bool* get_enable_filterPassThrough() { return &(enable_[PCL_ID_PassThrough]); }
 	double* get_filterPassThrough_threshold(int i) { return &threshold_[i]; }
 };
 
@@ -1160,20 +1190,13 @@ public:
 
 template<typename PointTypeT>
 PCL2<PointTypeT>::PCL2() :
-	enable_(vector<bool>(30))
-	,initialized_(vector<bool>(30))
+	//enable_(vector<bool>(30))
+	//,initialized_(vector<bool>(30))
 	//----basic point clouds init---
-	,cloud_main_(new pcl::PointCloud<PointTypeT>)
+	cloud_main_(new Cloud())
+	,cloud_sub_(new Cloud())
 
 	//---track()---
-	, tracker(new KLDAdaptiveParticleFilterOMPTracker<PointTypeT, ParticleT>(8))
-	, coherence(new ApproxNearestPairPointCloudCoherence<PointTypeT>)
-	, distance_coherence(new DistanceCoherence<PointTypeT>())
-	, hsv_coherence(new HSVColorCoherence<PointTypeT>())
-	, nearest_pair_coherence(new NearestPairPointCloudCoherence<PointTypeT>)
-	, search(new pcl::search::Octree<PointTypeT>(0.01))
-	, transed_ref(new Cloud)
-	, transed_ref_downsampled(new Cloud)
 	, cloud_target_remover_ref_(new Cloud)
 	, cloud_target_remover_ref_downsampled_(new Cloud)
 	, Rcenter_ref_(new Cloud)
@@ -1190,6 +1213,9 @@ PCL2<PointTypeT>::PCL2() :
 	if (!enable_[PCL_ID_PCL]) return;
 
 	this->_setROSParam();
+
+	cloud_main_->reserve(1e6);
+	cloud_sub_->reserve(1e6);
 
 	initialized_[PCL_ID_PCL] = true;
 
@@ -1236,12 +1262,11 @@ void PCL2<PointTypeT>::update(int& number_of_points, std::vector<float>& points,
 
 
 
-
-	//PCL2<PointTypeT>::_remove_plane();  //xyz only
+	//PCL2<PointTypeT>::_remove_plane();
 	//PCL2<PointTypeT>::_compress();
-	//PCL2<PointTypeT>::_detect_change(color);  //xyz only
+	//PCL2<PointTypeT>::_detect_change(color);
 	//PCL2<PointTypeT>::_edit();
-	//PCL2<PointTypeT>::_recognite(); // to be improved
+	PCL2<PointTypeT>::_recognite();
 
 	//接触判定　(粒子フィルタ)
 	PCL2<PointTypeT>::_detect_contact_with_particlefilter();
@@ -1254,7 +1279,7 @@ void PCL2<PointTypeT>::update(int& number_of_points, std::vector<float>& points,
 
 
 	//新規window上に点群描画．PCL2<PointTypeT>::PCL()のviewerの初期化必要
-	//PCL2<PointTypeT>::drawResult();
+	PCL2<PointTypeT>::drawResult();
 
 	//pcdデータ（cloud_main_）保存．  保存場所指定は最後に"/"忘れずに
 	PCL2<PointTypeT>::_write_pcd_file(folder_write_);

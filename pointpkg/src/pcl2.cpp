@@ -13,8 +13,8 @@ void PCL2<pcl::PointXYZRGB>::_convert_array_to_pcd(int& number_of_points, std::v
 	cloud_main_->resize(points.size() / 3);
 	for (int i = 0; i < points.size() / 3; i++) {
 		(*cloud_main_)[i].x = points[3 * i + 0];
-		(*cloud_main_)[i].y = points[3 * i + 0];
-		(*cloud_main_)[i].z = points[3 * i + 0];
+		(*cloud_main_)[i].y = points[3 * i + 1];
+		(*cloud_main_)[i].z = points[3 * i + 2];
 		(*cloud_main_)[i].r = color[3 * i + 0];
 		(*cloud_main_)[i].g = color[3 * i + 1];
 		(*cloud_main_)[i].b = color[3 * i + 2];
@@ -31,8 +31,8 @@ void PCL2<pcl::PointXYZ>::_convert_array_to_pcd(int& number_of_points, std::vect
 	cloud_main_->resize(points.size() / 3);
 	for (int i = 0; i < points.size() / 3; i++) {
 		(*cloud_main_)[i].x = points[3 * i + 0];
-		(*cloud_main_)[i].y = points[3 * i + 0];
-		(*cloud_main_)[i].z = points[3 * i + 0];
+		(*cloud_main_)[i].y = points[3 * i + 1];
+		(*cloud_main_)[i].z = points[3 * i + 2];
 	}
 }
 

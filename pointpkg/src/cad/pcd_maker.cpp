@@ -1,4 +1,10 @@
-//#include <bits/stdc++.h>
+/*
+
+rosrun pointpkg pcd_maker objname.obj pcdname 111110 R G B A
+rosrun pointpkg pcd_maker C:\Users\y4236\Documents\pcws\src\pointpkg\src\cad\tip.obj C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_blue
+(XxYyZz) 1:true 0:false
+
+*/
 
 #include <iostream>
 #include <vector>
@@ -46,6 +52,14 @@ template< typename T >ostream &operator<<(ostream &os, const vector< T > &v) {fo
 template< typename T >istream &operator>>(istream &is, vector< T > &v) {for(T &in : v) is >> in;return is;}
 template <class T, class U> void chmin(T& t, const U& u) {if (t > u) t = u;}
 template <class T, class U> void chmax(T& t, const U& u) {if (t < u) t = u;}
+
+struct Random {
+    const unsigned SEED;
+    mt19937 engine;
+    unsigned long long mod = 0;
+    Random():SEED(random_device()()), engine(SEED){}
+    unsigned operator()() { return engine(); }
+};
 
 struct NormalDistRandom{
     const unsigned SEED;
@@ -388,7 +402,9 @@ struct PCDMaker{
         func(resultVp);
     }
 
-    void output(string pcdname, vector<unsigned int> RGBA = {255, 255, 255, 0}){
+    template<typename F>
+    void output(string pcdname, vector<unsigned int> RGBA = { 255, 255, 255, 0 }, F colorize = [&](const auto& xyz,auto& rgba)->void {}) {
+        PS(pcdname) PL("try writing...")
         ofstream ofs(pcdname);
         ofs << fixed << setprecision(8);
         ofs << "# .PCD v0.7 - Point Cloud Data file format" << endl;
@@ -414,11 +430,15 @@ struct PCDMaker{
                 chmin(rgba[j], 255);
                 chmax(rgba[j], 0);
             }
+
+            colorize(resultVp[i], rgba);
+
             unsigned int color = rgba[0]<<16 | rgba[1]<<8 | rgba[2] | rgba[3]<<24;
             ofs<<resultVp[i].x<<" "<<resultVp[i].y<<" "<<resultVp[i].z<<" "<<color<<endl;
         }
 
         ofs.close();
+        PS(pcdname) PL("written")
     }
 
 };
@@ -437,7 +457,7 @@ int main(int argc, char** argv) {
 
     string objname = "sample_cube.obj"; //cin>>filename;
     string pcdname = "result.pcd";
-    vector<unsigned int> RGBA = {230, 230, 230, 0};
+    vector<unsigned int> RGBA = {200, 200, 200, 0};
 
     vector<bool> acceptMax = {false, false, false};
     vector<bool> acceptMin = {true, false, false};
@@ -462,6 +482,8 @@ int main(int argc, char** argv) {
     maker.input(objname, scale);
 
     maker.calcMaxMin();
+
+    //ツール先端が原点に，y軸を向くように変換
     //先端が原点に来るように
     maker.forEachVp([&](Vec& Vpi)->void {
         Vpi.z -= maker.Mz;
@@ -482,7 +504,7 @@ int main(int argc, char** argv) {
         tmp.z = Vpi.y * sin(angle) + Vpi.z * cos(angle);
         Vpi = tmp;
         });
-
+    
 
 
     maker.calc(resolution);
@@ -495,10 +517,21 @@ int main(int argc, char** argv) {
     acceptMax = { true, true, true };
     acceptMin = { true, false, false };
     maker.calcMaxMin();
+    Random rand;
     maker.extract(acceptMin, acceptMax, [&](const Vec& Vpi) {
         //if (Vpi.y <= -0.1) return false;
         //if (Vpi.z <= -0.005) return false;
-        if (Vpi.y < -0.2) return false;
+
+        //中の棒
+        if (Vpi.y < -0.101) return false;
+        //半分
+        //if (Vpi.z < 0.) return false;
+
+        //銀色部分, 50%
+        if (Vpi.y < -0.08 && (rand() & 1)) return false;
+
+        if (-0.03 < Vpi.y && (rand() & 1)) return false;
+
         return true;
         });
     //根本側を消す
@@ -513,8 +546,26 @@ int main(int argc, char** argv) {
     //    }
     //   });    
     //save as target
-    maker.output(pcdname + "_target.pcd", RGBA);
+    maker.output(pcdname + "_target.pcd", RGBA, 
+        [](const auto& xyz, auto& rgb)->void {
+            //青くする
+            //if (-0.08 < xyz.y && xyz.y <= -0.03) {
+            //    //rgb
+            //    rgb[0] = 30;
+            //    rgb[1] = 150;
+            //    rgb[2] = 200;
+            ////}
+            ////else if (-0.055 < xyz.y && xyz.y <= -0.03) {
+            //    //rgb
+            //    //rgb[0] = 220;
+            //    //rgb[1] = 200;
+            //    //rgb[2] = 0;
+            //}
+            return;
+        }
+    );
 
+    return 0;
 
 
     //-------------------mask-----------------------
@@ -533,7 +584,7 @@ int main(int argc, char** argv) {
         }
     });
     //save as mask
-    maker.output(pcdname+"_mask.pcd", RGBA);
+    maker.output(pcdname+"_mask.pcd", RGBA, [](const auto& xyz, auto& rgb)->void {return; });
 
 
 
@@ -545,8 +596,7 @@ int main(int argc, char** argv) {
         resultVp.clear();
         resultVp.push_back(Vec(0., 0., 0., -1));
     });
-    maker.output(pcdname+"_tip.pcd", RGBA);
-
+    maker.output(pcdname+"_tip.pcd", RGBA, [](const auto& xyz, auto& rgb)->void {return; });
 
     return 0;
 }

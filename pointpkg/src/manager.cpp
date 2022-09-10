@@ -23,29 +23,29 @@ void Manager::update() {
 	color_.clear();
 
 	auto t = clock();
-
+	bool showTime = true;
 
 	/////////////////////PointCloudReceiver///////////////////////////////////////
 	//RECEIVER_COLOR_SINGLE or RECEIVER_COLOR_COLORFUL are available for the 4th arguments
 	ros_interface_->update(points_size_, points_, color_);
 	//std::cerr << "ope ros" << std::endl;
-	EL(clock() - t);
+	if(showTime) EL(clock() - t);
 
 	realsense_->getPointCloud(points_, color_);
-	EL(clock() - t);
+	if (showTime) EL(clock() - t);
 
 
 	/////////////////////////////PCL//////////////////////////////////////////////
 	pcl_->update(points_size_, points_, color_);
 	//std::cerr << "ope pcl" << std::endl;
-	EL(clock() - t);
+	if (showTime) EL(clock() - t);
 
 
 
 	//////////////////////////PointCloudShower////////////////////////////////////
 	coppeliasim_interface_->update(points_size_, points_, color_);
 	//std::cerr << "ope cop" << std::endl;
-	EL(clock() - t);
+	if (showTime) EL(clock() - t);
 
 	//coppeliasim_interface_->update(points_size_, points_, color_, COP_FUNC_APPEARED);
 	//coppeliasim_interface_->update(pcl_->get_appeared_points_size(), pcl_->get_appeared_points(), nullptr,COP_FUNC_APPEARED);

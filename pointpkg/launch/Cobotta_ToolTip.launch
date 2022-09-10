@@ -13,29 +13,38 @@
 
 
 			<param name="PCL_pcd_type" value="4"/>
-            <param name="PCL_pcd_target" value="C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_target.pcd"/>
-            <param name="PCL_pcd_mask" value="C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_mask.pcd"/>
-            <param name="PCL_pcd_tip" value="C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_tip.pcd"/>
+            <param name="PCL_pcd_target" value="C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_blue_target.pcd"/>
+            <param name="PCL_pcd_mask" value="C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_blue_mask.pcd"/>
+            <param name="PCL_pcd_tip" value="C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_blue_tip.pcd"/>
             <param name="PCL_param_txt" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcl_interface_parameters.txt"/>
-            <param name="PCL_pcd_read" value="C:/Users/y4236/Documents/pcws/src/pointpkg/src/cad/tool_mask.pcd"/>
+            <param name="PCL_pcd_read" value="C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_target.pcd"/>
             <param name="PCL_pcd_write" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcd/MS_xyzrgba99/"/>
 
 			<param name="PCL_enable_PCL" value="1"/>
-			<param name="PCL_enable_read_pcd" value="1"/>
-            <param name="PCL_enable_write_pcd" value="0"/>
-            <param name="PCL_enable_transform" value="1"/>
-            <param name="PCL_enable_passthrough" value="1"/>
-            <param name="PCL_enable_particlefilter" value="1"/>
-            <param name="PCL_enable_detect_with_sim" value="0"/>
+			<param name="PCL_enable_ReadPCD" value="1"/>
+			<param name="PCL_enable_WritePCD" value="0"/>
+			<param name="PCL_enable_Transform" value="0"/>
+			<param name="PCL_enable_PassThrough" value="0"/>
+			<param name="PCL_enable_ParticleFilter" value="0"/>
+			<param name="PCL_enable_DetectWithSim" value="0"/>
+			<param name="PCL_enable_DrawResult" value="1"/>
+			<param name="PCL_enable_Recognite" value="0"/>
 
-
-            <param name="SIM_simIP" value="127.0.0.1"/>
+			<param name="SIM_enable_SIM" value="0"/>
+			<param name="SIM_simIP" value="127.0.0.1"/>
             <param name="SIM_PortNumber" value="19998"/>
             <param name="SIM_param_txt" value="C:/Users/y4236/Documents/pcws/src/pointpkg/coppeliasim_interface_parameters.txt"/>
             <param name="SIM_LabView_connect" value="0"/>
             <param name="SIM_LabView_IP" value="192.168.1.100"/>
             <param name="SIM_LabView_Port" value="6430"/>
-			<param name="SIM_enable_SIM" value="1"/>
+
+			<param name="RS_enable_RS" value="0"/>
+			<param name="RS_enable_FILTER_Decimate" value="0"/>
+			<param name="RS_enable_FILTER_Disparity" value="1"/>
+			<param name="RS_enable_FILTER_Spatial" value="0"/>
+			<param name="RS_enable_FILTER_Temporal" value="1"/>
+			<param name="RS_enable_FILTER_Hole" value="1"/>
+
 
 			<!-- <rosparam command="load" file="$(find robot_solver)/config/CobottaDH.yaml"/> -->
         </node>
