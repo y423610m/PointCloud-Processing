@@ -23,7 +23,7 @@ void Manager::update() {
 	color_.clear();
 
 	auto t = clock();
-	bool showTime = true;
+	bool showTime = false;
 
 	/////////////////////PointCloudReceiver///////////////////////////////////////
 	//RECEIVER_COLOR_SINGLE or RECEIVER_COLOR_COLORFUL are available for the 4th arguments

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(pointpkg)
 
+string(APPEND CMAKE_CXX_FLAGS " /W4")#onnx
+
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 #add_compile_options(-std=c++17)
@@ -58,12 +60,51 @@ add_definitions(${PCL_DEFINITIONS})
 message("## PCL_INCLUDE_DIRS: ${PCL_INCLUDE_DIRS}")
 
 ##################################################################
-###############               RealSense                #################
+###############             RealSense            #################
 ##################################################################
 set(REALSENSE_INCLUDE_DIRS "C:/Program Files (x86)/Intel RealSense SDK 2.0/include")
 set(REALSENSE_LIBS "C:/Program Files (x86)/Intel RealSense SDK 2.0/lib/x64/realsense2.lib")
 include_directories(${REALSENSE_INCLUDE_DIRS})
 link_directories(${REALSENSE_LIBS})
+
+##################################################################
+###############               ONNX               #################
+##################################################################
+#https://github.com/microsoft/onnxruntime-inference-examples/blob/main/c_cxx/CMakeLists.txt
+option(onnxruntime_USE_CUDA "Build with CUDA support" ON)
+option(onnxruntime_USE_OPENVINO "Build with OpenVINO support" ON)
+option(onnxruntime_USE_NNAPI_BUILTIN "Build with builtin NNAPI lib for Android NNAPI support" OFF)
+option(onnxruntime_USE_DNNL "Build with DNNL support" ON)
+option(onnxruntime_USE_NUPHAR "Build with Nuphar" ON)
+option(onnxruntime_USE_TENSORRT "Build with TensorRT support" ON)
+option(LIBPNG_ROOTDIR "libpng root dir")
+option(ONNXRUNTIME_ROOTDIR "onnxruntime root dir")
+if(onnxruntime_USE_CUDA)
+  add_definitions(-DUSE_CUDA)
+endif()
+if(onnxruntime_USE_OPENVINO)
+  add_definitions(-DUSE_OPENVINO)
+endif()
+if(onnxruntime_USE_NNAPI_BUILTIN)
+  add_definitions(-DUSE_NNAPI)
+endif()
+if(onnxruntime_USE_DNNL)
+  add_definitions(-DUSE_DNNL)
+endif()
+if(onnxruntime_USE_NUPHAR)
+  add_definitions(-DUSE_NUPHAR)
+endif()
+if(onnxruntime_USE_TENSORRT)
+  add_definitions(-DUSE_TENSORRT)
+endif()
+if(onnxruntime_USE_DML)
+  message("Enabling DML")
+  add_definitions(-DUSE_DML)
+endif()
+set(ONNXRUNTIME_ROOTDIR "C:/Users/y4236/Documents/pcws/src/pointpkg/onnxruntime-win-x64-gpu-1.12.1")
+include_directories("${ONNXRUNTIME_ROOTDIR}/include")#"${ONNXRUNTIME_ROOTDIR}/include/onnxruntime/core/session")
+link_directories("${ONNXRUNTIME_ROOTDIR}/lib/onnxruntime.lib")
+#set(ONNXRUNTIME_LIBS "${ONNXRUNTIME_ROOTDIR}/lib/")
 
 ##################################################################
 ####################   excutables and link   #####################
@@ -81,13 +122,16 @@ src/ros_param.cpp
 
 src/realsense_interface.cpp
 
+src/yolo_detector.cpp
+src/yolo_utils.cpp
+
 
 #src/not_used/client.cpp
 #src/not_used/manager.cpp
 
 
 )
-
+target_compile_options(pointer PUBLIC -O2)
 
 target_link_libraries(pointer
    ${catkin_LIBRARIES}
@@ -95,6 +139,7 @@ target_link_libraries(pointer
    ${OpenCV_LIBS}
    ${PCL_LIBRARIES}
    ${REALSENSE_LIBS}
+   ${ONNXRUNTIME_LIBS}
 )
 
 add_executable(tdmaker_for_pc

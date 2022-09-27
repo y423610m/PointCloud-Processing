@@ -15,7 +15,7 @@
 #include <chrono>
 
 
-RealSenseInterface::RealSenseInterface() {
+RealSenseInterface::RealSenseInterface(){
     if (!ROSParam::getIntParam("RS_enable_RS")) return;
 
     //幅，高さ，奥行
@@ -27,7 +27,9 @@ RealSenseInterface::RealSenseInterface() {
 
     this->_setFilters();
 
-
+    yolov7_.reset(new YOLODetector("C:/Users/y4236/Documents/ToolDetectYOLO/yolov7/CobottaTool/result/train8/weights/last.onnx", false, cv::Size(480, 480)));
+    yolov7_->setConfThreshold(0.25);
+    yolov7_->setIouThreshold(0.65);
 
     initialized_ = true;
     cerr << "RealSenseInterface constructed" << endl;
@@ -58,21 +60,6 @@ RealSenseInterface::~RealSenseInterface() {
     pipe_.stop();
 }
 
-
-
-
-std::array<uint8_t, 3> get_texcolor(const rs2::video_frame& texture, const uint8_t* texture_data, float u, float v, bool& isOut)
-{
-    const int w = texture.get_width(), h = texture.get_height();
-    int x = std::min(std::max(int(u * w + .5f), 0), w - 1);
-    if (w<=int(u * w + .5f)) isOut = true;
-    int y = std::min(std::max(int(v * h + .5f), 0), h - 1);
-    //ES(x) EL(y)
-    int idx = x * texture.get_bytes_per_pixel() + y * texture.get_stride_in_bytes();
-    return { texture_data[idx], texture_data[idx + 1], texture_data[idx + 2] };
-}
-
-
 void RealSenseInterface::_setFilters() {
     //defined in rs_processing.hpp 
     /// sample rs-post-processing.h
@@ -97,8 +84,7 @@ void RealSenseInterface::_setFilters() {
     if (ROSParam::getIntParam("RS_enable_FILTER_Hole")) filters_.emplace_back("Hole", hole_filter);
 }
 
-
-//pipeから受け取り，filterかけてからqueueに挿入
+//pipeから受け取り，filterかけてからqueueに挿入. 別スレッドで回す予定
 void RealSenseInterface::_process() {
     rs2::frameset frames = pipe_.wait_for_frames();
 
@@ -124,6 +110,31 @@ void RealSenseInterface::_process() {
     color_que_.enqueue(frames.get_color_frame());
 }
 
+std::array<uint8_t, 3> get_texcolor(const rs2::video_frame& texture, const uint8_t* texture_data, float u, float v, bool& isOut)
+{
+    const int w = texture.get_width(), h = texture.get_height();
+    int x = std::min(std::max(int(u * w + .5f), 0), w - 1);
+    if (w <= int(u * w + .5f)) isOut = true;
+    int y = std::min(std::max(int(v * h + .5f), 0), h - 1);
+    //ES(x) EL(y)
+    int idx = x * texture.get_bytes_per_pixel() + y * texture.get_stride_in_bytes();
+    return { texture_data[idx], texture_data[idx + 1], texture_data[idx + 2] };
+}
+
+cv::Mat makeMatImage(const rs2::video_frame& texture, const uint8_t* texture_data) {
+    const int H = texture.get_height(), W = texture.get_width();
+    cv::Mat Image(H, W, CV_8UC3);//BGRで格納
+    for (int h = 0; h < H; h++) {
+        //auto Image_row_h = Image.ptr(h);
+        for (int w = 0; w < W; w++) {
+            for (int col = 0; col < 3; col++) {
+                Image.at<cv::Vec3b>(h, w)[col] = texture_data[w * texture.get_bytes_per_pixel() + h * texture.get_stride_in_bytes()+2-col];
+            }
+        }
+    }
+    return Image;
+}
+
 void RealSenseInterface::getPointCloud(std::vector<float>& points, std::vector<int>& color) {
     if (!initialized_) return;
 
@@ -131,7 +142,7 @@ void RealSenseInterface::getPointCloud(std::vector<float>& points, std::vector<i
 
     rs2::frame depth_frame;
     rs2::frame color_frame;
-    if (!depth_que_.poll_for_frame(&depth_frame)) return ;
+    if (!depth_que_.poll_for_frame(&depth_frame)) return;
     if (!color_que_.poll_for_frame(&color_frame)) return;
 
 
@@ -144,31 +155,36 @@ void RealSenseInterface::getPointCloud(std::vector<float>& points, std::vector<i
 
     if (points_.size() == 0) return;
 
-	auto verts = points_.get_vertices();
-    auto texture_data = reinterpret_cast<const uint8_t*>(color_frame.get_data());
-    const auto texcoords = points_.get_texture_coordinates();
+	//auto verts = points_.get_vertices();
+ //   auto texture_data = reinterpret_cast<const uint8_t*>(color_frame.get_data());
+ //   const auto texcoords = points_.get_texture_coordinates();
+    const rs2::vertex* verts = points_.get_vertices();//点群の座標
+    const uint8_t* texture_data = reinterpret_cast<const uint8_t*>(color_frame.get_data());//rgbrgbrgb...一次元配列
+    const rs2::texture_coordinate* texcoords = points_.get_texture_coordinates();//点が画角のどのあたりか
+
+    cv::Mat image = makeMatImage(color_frame, texture_data);
+    std::vector<Detection> result = yolov7_->detect(image);
+    //tipPosionを求める
+    
+    cv::imshow("image", image);
+    cv::waitKey(1);
 
     if (points.size()) points.clear();
     if (color.size()) color.clear();
 
     double min_distance = 1e-6;
+    //RGBデータのない周辺データを除く？
     bool removeOut = true;
     for (size_t i = 0; i < points_.size(); ++i) {
         if (fabs(verts[i].x) <= min_distance || fabs(verts[i].y) <= min_distance || fabs(verts[i].z) <= min_distance) continue;
         if (fabs(verts[i].x) >= threshold_[0] || fabs(verts[i].y) >= threshold_[1] || fabs(verts[i].z) >= threshold_[2]) continue;
-        
         bool isOut = false;
-        auto rgb = get_texcolor(color_frame, texture_data, texcoords[i].u, texcoords[i].v, isOut);
+        std::array<uint8_t, 3> rgb = get_texcolor(color_frame, texture_data, texcoords[i].u, texcoords[i].v, isOut);
         if (removeOut && isOut) continue;
         for (int j = 0; j < 3; j++) color.push_back(rgb[j]);
-
-        //points.push_back(verts[i].x);
-        //points.push_back(verts[i].z);
-        //points.push_back(-verts[i].y);
         points.push_back(verts[i].x);
         points.push_back(verts[i].y);
         points.push_back(verts[i].z);
-
     }
     //EL(points.size());
     //EL(color.size());

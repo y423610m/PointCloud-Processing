@@ -20,7 +20,7 @@
             <param name="PCL_pcd_read" value="C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_target.pcd"/>
             <param name="PCL_pcd_write" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcd/MS_xyzrgba99/"/>
 
-			<param name="PCL_enable_PCL" value="1"/>
+			<param name="PCL_enable_PCL" value="0"/>
 			<param name="PCL_enable_ReadPCD" value="1"/>
 			<param name="PCL_enable_WritePCD" value="0"/>
 			<param name="PCL_enable_Transform" value="0"/>
@@ -38,7 +38,7 @@
             <param name="SIM_LabView_IP" value="192.168.1.100"/>
             <param name="SIM_LabView_Port" value="6430"/>
 
-			<param name="RS_enable_RS" value="0"/>
+			<param name="RS_enable_RS" value="1"/>
 			<param name="RS_enable_FILTER_Decimate" value="0"/>
 			<param name="RS_enable_FILTER_Disparity" value="1"/>
 			<param name="RS_enable_FILTER_Spatial" value="0"/>

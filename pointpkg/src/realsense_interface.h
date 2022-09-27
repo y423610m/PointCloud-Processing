@@ -7,6 +7,10 @@
 #include <map>
 #include <thread>
 
+#include "yolo_detector.h"
+#include <memory>
+
+
 /*
 
 getPointCloud()
@@ -74,6 +78,12 @@ private:
 	const std::string disparity_filter_name = "Disparity";
 	rs2::disparity_transform* disparity_to_depth;
 
+	//for YOLO
+	std::unique_ptr<YOLODetector> yolov7_;
+	const float confThreshold = 0.25f;
+	const float iouThreshold = 0.65f;
+
+
 	void _setFilters();
 	void _process();
 	
@@ -86,3 +96,27 @@ public:
 	void getPointCloud(std::vector<float>& points, std::vector<int>& color);
 	void getPointCloud2(std::vector<float>& points, std::vector<int>& color);
 };
+
+
+/*
+	
+	///ONNXÇ…ïœä∑ñYÇÍÇÈÇ»Å[ÅièŒÅj
+	
+std::string modelPath = "C:/Users/y4236/Documents/ToolDetectYOLO/yolov7/CobottaTool/result/train8/weights/last.onnx";
+bool isGPU = false;
+YOLODetector detector(modelPath, isGPU, cv::Size(480, 480));
+
+std::string imagePath = "C:/Users/y4236/Documents/ToolDetectYOLO/yolov7/CobottaTool/train/141741821192.jpg";
+cv::Mat image = cv::imread(imagePath);
+cv::resize(image, image, cv::Size(480, 480));
+EL(image.size())
+
+std::vector<Detection> result;
+result = detector.detect(image, confThreshold, iouThreshold);
+std::vector<std::string> classNames = { "Tool", "Yellow", "Green", "Blue", "Pink" };
+for (int i = 5; i <= 100; i++) classNames.push_back(to_string(i));
+utils::visualizeDetection(image, result, classNames);
+cv::imshow("result", image);
+//cv::imwrite("result.jpg", image);
+cv::waitKey(0);
+*/
