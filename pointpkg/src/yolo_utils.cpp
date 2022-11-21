@@ -49,6 +49,7 @@ std::vector<std::string> utils::loadNames(const std::string& path)
 void utils::visualizeDetection(cv::Mat& image, std::vector<Detection>& detections,
     const std::vector<std::string>& classNames)
 {
+
     for (const Detection& detection : detections)
     {
         cv::rectangle(image, detection.box, cv::Scalar(229, 160, 21), 2);
@@ -72,6 +73,7 @@ void utils::visualizeDetection(cv::Mat& image, std::vector<Detection>& detection
     }
 }
 
+//何も考えずにcv::resize()を使うと，0123456789->2457のように中央はそのまま，端部の
 void utils::letterbox(const cv::Mat& image, cv::Mat& outImage,
     const cv::Size& newShape = cv::Size(640, 640),
     const cv::Scalar& color = cv::Scalar(114, 114, 114),
@@ -114,12 +116,20 @@ void utils::letterbox(const cv::Mat& image, cv::Mat& outImage,
     if (shape.width != newUnpad[0] && shape.height != newUnpad[1])
     {
         cv::resize(image, outImage, cv::Size(newUnpad[0], newUnpad[1]));
+        std::cerr << (newUnpad[0]) << " " << (newUnpad[1]) << std::endl;
+        //480 360
     }
 
     int top = int(std::round(dh - 0.1f));
     int bottom = int(std::round(dh + 0.1f));
     int left = int(std::round(dw - 0.1f));
     int right = int(std::round(dw + 0.1f));
+    std::cerr << top << " " << bottom << std::endl;
+    std::cerr << left << " " << right << std::endl;
+    /*
+    60 60
+    0 0
+    */
     cv::copyMakeBorder(outImage, outImage, top, bottom, left, right, cv::BORDER_CONSTANT, color);
 }
 

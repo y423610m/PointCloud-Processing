@@ -49,8 +49,9 @@ private:
 
 
 public:
+	bool downSampleTargetCloud_ = false;
 	// arg:トラッキングしたい対象の点群，　削除用点群，　トラッキングしたい対象の点群の先端位置（1点のみ）
-	ContactDetector2(std::string pcd_target, std::string pcd_mask = "", std::string pcd_tip = "") :
+	ContactDetector2(std::string pcd_target, std::string pcd_mask = "", std::string pcd_tip = "", std::array<int, 3> rgb = {255,0,0}) :
 		cloud_target_init_(new Cloud())
 		, cloud_mask_init_(new Cloud())
 		, cloud_tip_init_(new Cloud())
@@ -60,7 +61,14 @@ public:
 		, cloud_sub_(new Cloud())
 		, octree(pcl::octree::OctreePointCloudChangeDetector<PointTypeT>(0.005))
 		, inliers(new pcl::PointIndices())
+		, consensus_(new Cloud())
+		, different_(new Cloud())
 	{
+
+		downSampleTargetCloud_ = ROSParam::getIntParam("CD_DownSampleTargetCloud");
+		showConsensus_ = ROSParam::getIntParam("CD_ShowConsensus");
+		showTargetTool_ = ROSParam::getIntParam("CD_ShowTargetTool");
+
 		//TO DO 点群密度を下げる
 		pcl::ApproximateVoxelGrid<PointTypeT> grid;
 		double leaf_size = 0.005;
@@ -73,8 +81,17 @@ public:
 			std::cerr << "remover::remover; pcd target file not found" << std::endl;
 			exit(-1);
 		}
-		grid.setInputCloud(cloud_sub_);
-		grid.filter(*cloud_target_init_);
+		if (downSampleTargetCloud_) {
+			grid.setInputCloud(cloud_sub_);
+			grid.filter(*cloud_target_init_);
+		}
+		else *cloud_target_init_ = *cloud_sub_;
+		//target着色
+		for (auto& p : *cloud_target_init_) {
+			p.r = rgb[0];
+			p.g = rgb[1];
+			p.b = rgb[2];
+		}
 		*cloud_target_transformed_ = *cloud_target_init_;
 
 		if (pcd_mask != "" && pcl::io::loadPCDFile(pcd_mask, *cloud_sub_) == -1) {
@@ -154,6 +171,10 @@ public:
 	}
 
 	//cloud_xyzrgbaからpcd_maskを取り除き，pcd_tip周辺の点数を数える
+	CloudPtr consensus_;
+	CloudPtr different_;
+	bool showConsensus_ = true;
+	bool showTargetTool_ = true;
 	void remove_and_detect(CloudPtr& cloud) {
 		//cloud_ と resultの一致検出
 		//pcl::octree::OctreePointCloudChangeDetector<PointTypeT> octree(0.005);
@@ -173,20 +194,19 @@ public:
 		//for (int i = 0; i < newPointIdxVector.size(); i++) {
 		//	inliers->indices.push_back(newPointIdxVector[i]);
 		//}
-		CloudPtr consensus(new Cloud());
-		CloudPtr different(new Cloud());
+
 
 		pcl::ExtractIndices<PointTypeT> extract;
 		//extract.setKeepOrganized(true);
 		extract.setInputCloud(cloud);
 		extract.setIndices(inliers);
 		extract.setNegative(false);
-		extract.filter(*different);
+		extract.filter(*different_);
 		extract.setNegative(true);//red
-		extract.filter(*consensus);
+		extract.filter(*consensus_);
 
 
-		*cloud = *different;//!!!!!!!!!!!!!!!!!!
+		*cloud = *different_;//!!!!!!!!!!!!!!!!!!
 
 
 		//*cloud = *cloud_mask_transformed_;
@@ -207,37 +227,48 @@ public:
 			std::vector<int> pointIdxRadiusSearch;
 			std::vector<float> pointRadiusSquareDistance;
 
+			//double dist = sqrt();
+
 			float R = 0.01;
 			int num = 200;
 			int n = kdtree.radiusSearch(searchPoint, 0.020, pointIdxRadiusSearch, pointRadiusSquareDistance);
 			//std::cerr << "number of nearest point 0.020 " << n << std::endl;
+			//PS(n);
 			n = kdtree.radiusSearch(searchPoint, 0.015, pointIdxRadiusSearch, pointRadiusSquareDistance);
 			//std::cerr << "number of nearest point 0.015 " << n << std::endl;
+			//PS(n);
 			n = kdtree.radiusSearch(searchPoint, 0.010, pointIdxRadiusSearch, pointRadiusSquareDistance);
 			//std::cerr << "number of nearest point 0.010 " << n << std::endl;
+			//PS(n);
 			n = kdtree.radiusSearch(searchPoint, 0.005, pointIdxRadiusSearch, pointRadiusSquareDistance);
 			//std::cerr << "number of nearest point 0.005 " << n << std::endl;
+			//PL(n);
 
-			//if (n > num) for (int i = 0; i < int(std::log2(n-num)); i++) std::cerr << "##";
-			//std::cerr << std::endl;
+			//if (n > num) {
+			//	for (int i = 0; i < int(3 * std::log2(n - num)); i++) std::cerr << "#";
+			//	std::cerr << std::endl;
+			//}
+			/*
+			メモ
+			r=0.015で400超えたら接触
+			*/
+
+
 		}
 
 		cloud->push_back(searchPoint);
-
 		//発見したターゲットを再び戻す？
-		for (const auto& point : *consensus) {
-			//point.r = 0;// -cloud.r;
-			//point.g = 0;// -cloud.g;
-			//point.b = 255;// -cloud.b;
-			cloud->push_back(point);
+		if (showConsensus_) for (const auto& point : *consensus_) {
+			cloud->emplace_back(point);
+			//cloud->back().r = 255;
+			//cloud->back().g = 0;
+			//cloud->back().b = 0;
 		}
 
 		//target予測位置表示
-		for (const auto& p : *cloud_target_transformed_) {
-			//cloud->push_back(p);
-			//cloud->back().r = 255;
+		if(showTargetTool_) for (const auto& p : *cloud_target_transformed_) {
+			cloud->emplace_back(p);
 		}
-
 	}
 
 	//粒子フィルタにおける重心計算を補正するため

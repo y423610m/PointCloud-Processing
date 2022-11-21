@@ -1,7 +1,12 @@
+//https://github.com/itsnine/yolov5-onnxruntime/blob/master/src/detector.cpp ‚ğŒ³‚ÉYOLOv7—p‚É•ÏXD‚‘¬‰»
+
+
 #pragma once
 #include <codecvt>
 #include <fstream>
 #include <opencv2/opencv.hpp>
+
+#include "development_commands.h"
 
 
 struct Detection

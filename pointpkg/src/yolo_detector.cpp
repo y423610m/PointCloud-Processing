@@ -2,7 +2,11 @@
 
 YOLODetector::YOLODetector(const std::string& modelPath,
     const bool& isGPU = true,
-    const cv::Size& inputSize = cv::Size(640, 640))
+    const cv::Size& inputSize = cv::Size(640, 640),
+    const cv::Size& originalImageShape = cv::Size(640, 640))
+
+:inputImageShape_(inputSize),
+originalImageShape_(originalImageShape)
 {
     env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_WARNING, "ONNX_DETECTION");
     sessionOptions = Ort::SessionOptions();
@@ -54,7 +58,7 @@ YOLODetector::YOLODetector(const std::string& modelPath,
     std::cout << "Input name: " << inputNames[0] << std::endl;
     std::cout << "Output name: " << outputNames[0] << std::endl;
 
-    this->inputImageShape = cv::Size2f(inputSize);
+    //this->inputImageShape = cv::Size2f(inputSize);
 
     classNames_ = { "Tool", "Yellow", "Green", "Blue", "Pink" };
 }
@@ -78,44 +82,41 @@ void YOLODetector::getBestClassInfo(std::vector<float>::iterator it, const int& 
 
 }
 
-void YOLODetector::preprocessing(cv::Mat& image, float*& blob, std::vector<int64_t>& inputTensorShape)
+//void YOLODetector::preprocessing(cv::Mat& image, float*& blob, std::vector<int64_t>& inputTensorShape)
+void YOLODetector::preprocessing(cv::Mat& image, std::vector<float>& blob)
 {
-    cv::Mat resizedImage, floatImage;
-    cv::cvtColor(image, resizedImage, cv::COLOR_BGR2RGB);
-    utils::letterbox(resizedImage, resizedImage, this->inputImageShape,
-        cv::Scalar(114, 114, 114), this->isDynamicInputShape,
-        false, true, 32);
+    cv::cvtColor(image, RGBImage_, cv::COLOR_BGR2RGB);
 
-    inputTensorShape[2] = resizedImage.rows;
-    inputTensorShape[3] = resizedImage.cols;
+    cv::resize(RGBImage_, resizedImage_, inputImageShape_);
 
-    resizedImage.convertTo(floatImage, CV_32FC3, 1 / 255.0);
-    blob = new float[floatImage.cols * floatImage.rows * floatImage.channels()];
-    cv::Size floatImageSize{ floatImage.cols, floatImage.rows };
+    resizedImage_.convertTo(floatImage_, CV_32FC3, 1.0 / 255.0);
 
-    // hwc -> chw
-    std::vector<cv::Mat> chw(floatImage.channels());
-    for (int i = 0; i < floatImage.channels(); ++i)
-    {
-        chw[i] = cv::Mat(floatImageSize, CV_32FC1, blob + i * floatImageSize.width * floatImageSize.height);
+    // hwc -> chw èââÒÇÃÇ›é¿çs
+    if (chw_.size() < floatImage_.channels()) {
+        cv::Size floatImage_Size{ floatImage_.cols, floatImage_.rows };
+        chw_.resize(floatImage_.channels());
+        blob.resize(floatImage_.cols * floatImage_.rows * floatImage_.channels());
+
+        for (int i = 0; i < floatImage_.channels(); ++i) {
+            chw_[i] = cv::Mat(floatImage_Size, CV_32FC1, &(blob[0]) + i * floatImage_Size.width * floatImage_Size.height);
+        }
     }
-    cv::split(floatImage, chw);
+
+    cv::split(floatImage_, chw_);
+
 }
 
-std::vector<Detection> YOLODetector::postprocessing(const cv::Size& resizedImageShape,
-    const cv::Size& originalImageShape,
-    std::vector<Ort::Value>& outputTensors,
-    const float& confThreshold, const float& iouThreshold)
+std::vector<Detection> YOLODetector::postprocessing(std::vector<Ort::Value>& outputTensors)
 {
-    std::vector<cv::Rect> boxes;
-    std::vector<float> confs;
-    std::vector<int> classIds;
+
 
     auto* rawOutput = outputTensors[0].GetTensorData<float>();
     std::vector<int64_t> outputShape = outputTensors[0].GetTensorTypeAndShapeInfo().GetShape();
     size_t count = outputTensors[0].GetTensorTypeAndShapeInfo().GetElementCount();
-    std::vector<float> output(rawOutput, rawOutput + count);
-    EL(output);
+    //std::vector<float> output_(rawOutput, rawOutput + count);
+    if (output_.size()) output_.clear();
+    for (int i = 0; i < count; i++) output_.emplace_back(rawOutput[i]);
+    //EL(output);
     /*
     outputShape -> å©Ç¬ÇØÇΩï®ëÃ*7
     0:?
@@ -132,12 +133,10 @@ std::vector<Detection> YOLODetector::postprocessing(const cv::Size& resizedImage
     int elementsInBatch = (int)(outputShape[0] * outputShape[1]);
 
     // only for batch size = 1
-    for (auto it = output.begin(); it < output.begin() + elementsInBatch; it += outputShape[1])
+    for (auto it = output_.begin(); it < output_.begin() + elementsInBatch; it += outputShape[1])
     {
-        //float clsConf = it[6];
-
         float confidence = it[6];
-        if (confidence > confThreshold)
+        if (confidence > confThreshold_)
         {
             int left = (int)(it[1]);
             int top = (int)(it[2]);
@@ -146,88 +145,74 @@ std::vector<Detection> YOLODetector::postprocessing(const cv::Size& resizedImage
             int classId = it[5];
 
             int width = right - left;
-            int height = bottom-top;
-            //int left = centerX - width / 2;
-            //int top = centerY - height / 2;
+            int height = bottom - top;
 
-            //float objConf;
-            //this->getBestClassInfo(it, numClasses, objConf, classId);
-
-
-            //float confidence = clsConf * objConf;
-
-            bool ok = true;
-            for(int i=0;i<4;i++) if (abs(it[i]) > 500) ok = false;
-            //if (!ok) continue;
-
-            boxes.emplace_back(left, top, width, height);
-            confs.emplace_back(confidence);
-            classIds.emplace_back(classId);
+            boxes_.emplace_back(left, top, width, height);
+            confs_.emplace_back(confidence);
+            classIds_.emplace_back(classId);
         }
     }
 
-    std::vector<int> indices;
-    cv::dnn::NMSBoxes(boxes, confs, confThreshold, iouThreshold, indices);
-    // std::cout << "amount of NMS indices: " << indices.size() << std::endl;
+    if (indices_.size()) indices_.clear();
+    //cv::dnn::NMSBoxes(boxes_, confs_, confThreshold_, iouThreshold_, indices_);
 
-    std::vector<Detection> detections;
+    if (detections_.size()) detections_.clear();
 
-    for (int idx : indices)
+    //for (int idx : indices_)
+    for(int idx = 0;idx< boxes_.size();idx++)
     {
         Detection det;
-        det.box = cv::Rect(boxes[idx]);
-        utils::scaleCoords(resizedImageShape, det.box, originalImageShape);
+        det.box = cv::Rect(boxes_[idx]);
+        //utils::scaleCoords(resizedImageShape, det.box, originalImageShape);
+        det.box.width = 1.0 * originalImageShape_.width / inputImageShape_.width * det.box.width;
+        det.box.x = 1.0 * originalImageShape_.width / inputImageShape_.width * det.box.x;
+        det.box.height = 1.0 * originalImageShape_.height / inputImageShape_.height * det.box.height;
+        det.box.y = 1.0 * originalImageShape_.height / inputImageShape_.height * det.box.y;
 
-        det.conf = confs[idx];
-        det.classId = classIds[idx];
-        detections.emplace_back(det);
+        det.conf = confs_[idx];
+        det.classId = classIds_[idx];
+        detections_.emplace_back(det);
     }
 
-    return detections;
+    boxes_.clear();
+    confs_.clear();
+    classIds_.clear();
+
+    return detections_;
 }
 
 std::vector<Detection> YOLODetector::detect(cv::Mat& image){
-    float* blob = nullptr;
-    std::vector<int64_t> inputTensorShape{ 1, 3, -1, -1 };
-    //EL(image.size());
-    this->preprocessing(image, blob, inputTensorShape);
-    //EL(image.size());
-    //PS("detector.cpp") PL("175");
-    size_t inputTensorSize = utils::vectorProduct(inputTensorShape);
+    if (!initialized_) {
+        inputTensorShape_ = { 1, 3, inputImageShape_.height, inputImageShape_.width };
+        inputTensorSize_ = utils::vectorProduct(inputTensorShape_);
 
-    std::vector<float> inputTensorValues(blob, blob + inputTensorSize);
+        memoryInfo_.reset(new Ort::MemoryInfo(nullptr));
+        *memoryInfo_ = Ort::MemoryInfo::CreateCpu(
+            OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
 
-    std::vector<Ort::Value> inputTensors;
+        initialized_ = true;
+    }
 
-    Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(
-        OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
-    //PS("detector.cpp") PL("184");
+    this->preprocessing(image, inputTensorValues_);
 
-    inputTensors.push_back(Ort::Value::CreateTensor<float>(
-        memoryInfo, inputTensorValues.data(), inputTensorSize,
-        inputTensorShape.data(), inputTensorShape.size()
+    if (inputTensors_.size()) inputTensors_.clear();//1*Tensor
+    inputTensors_.emplace_back(Ort::Value::CreateTensor<float>(
+        *memoryInfo_, inputTensorValues_.data(), inputTensorSize_,
+        inputTensorShape_.data(), inputTensorShape_.size()
         ));
 
-    std::vector<Ort::Value> outputTensors = this->session.Run(Ort::RunOptions{ nullptr },
+    if (outputTensors_.size()) outputTensors_.clear();
+    outputTensors_ = this->session.Run(Ort::RunOptions{ nullptr },
         inputNames.data(),
-        inputTensors.data(),
+        inputTensors_.data(),
         1,
         outputNames.data(),
         1);
-    //PS("detector.cpp") PL("197");
 
-    cv::Size resizedShape = cv::Size((int)inputTensorShape[3], (int)inputTensorShape[2]);
-    //PS("detector.cpp") PL("200");
-    std::vector<Detection> result = this->postprocessing(resizedShape,
-        image.size(),
-        outputTensors,
-        confThreshold, iouThreshold);
-    //PS("detector.cpp") PL("204");
+    if (result_.size()) result_.clear();
+    result_ = this->postprocessing(outputTensors_);
 
+    //utils::visualizeDetection(image, result, classNames_);
 
-    utils::visualizeDetection(image, result, classNames_);
-
-    delete[] blob;
-
-    return result;
+    return result_;
 }

@@ -28,7 +28,7 @@ int ROSParam::getIntParam(std::string param, bool addNameSpace, bool addNodeName
 	return  val;
 }
 
-float ROSParam::getFloatParam(std::string param, bool addNameSpace, bool addNodeName) {
+double ROSParam::getDoubleParam(std::string param, bool addNameSpace, bool addNodeName) {
 	if (addNameSpace) param = namespace_ + "/" + param;
 	if (addNodeName) param = nodename_ + "/" + param;
 

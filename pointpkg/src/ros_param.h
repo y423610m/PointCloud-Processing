@@ -12,6 +12,6 @@ class ROSParam {
 public:
 	static void init();
 	static int getIntParam(std::string param, bool addNameSpace = false, bool addNodeName = true);
-	static float getFloatParam(std::string param, bool addNameSpace = false, bool addNodeName = true);
+	static double getDoubleParam(std::string param, bool addNameSpace = false, bool addNodeName = true);
 	static std::string getStringParam(std::string param, bool addNameSpace = false, bool addNodeName = true);
 };

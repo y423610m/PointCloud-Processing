@@ -3,11 +3,17 @@
         <node pkg="pointpkg" type="pointer" name="pointer_node">
 
             <param name="MAIN_rate" value="100"/> <!--loop rate-->
+			<param name="MAIN_ShowTime" value="0"/>
 
-            <param name="COMMON_robot_type" value="1"/> <!--1:Cobotta 2:MSRobot-->
+
+			<param name="COMMON_robot_type" value="1"/> <!--1:Cobotta 2:MSRobot-->
 
 
-            <param name="ROS_delay" value="0.001"/> <!--time delay-->
+			<param name="MANAGER_ShowTime" value="1"/>
+
+			<param name="GUI_enable_GUI" value="1"/>
+
+			<param name="ROS_delay" value="0.001"/> <!--time delay-->
             <param name="ROS_param_txt" value="C:/Users/y4236/Documents/pcws/src/pointpkg/ros_interface_parameters_MSR.txt"/>
 			<param name="ROS_use_color" value="1"/>
 
@@ -19,16 +25,23 @@
             <param name="PCL_param_txt" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcl_interface_parameters.txt"/>
             <param name="PCL_pcd_read" value="C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_target.pcd"/>
             <param name="PCL_pcd_write" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcd/MS_xyzrgba99/"/>
+			<param name="PCL_YOLO_RGB_YG" value="255000000"/>
+			<param name="PCL_YOLO_RGB_BP" value="255000"/>
 
-			<param name="PCL_enable_PCL" value="0"/>
-			<param name="PCL_enable_ReadPCD" value="1"/>
+			<param name="PCL_enable_PCL" value="1"/>
+			<param name="PCL_enable_ReadPCD" value="0"/>
 			<param name="PCL_enable_WritePCD" value="0"/>
-			<param name="PCL_enable_Transform" value="0"/>
+			<param name="PCL_enable_Transform" value="1"/>
 			<param name="PCL_enable_PassThrough" value="0"/>
 			<param name="PCL_enable_ParticleFilter" value="0"/>
 			<param name="PCL_enable_DetectWithSim" value="0"/>
 			<param name="PCL_enable_DrawResult" value="1"/>
 			<param name="PCL_enable_Recognite" value="0"/>
+			<param name="PCL_enable_DetectWithYOLO" value="1"/>
+
+			<param name="CD_DownSampleTargetCloud" value="0"/>
+			<param name="CD_ShowConsensus" value="1"/>
+			<param name="CD_ShowTargetTool" value="1"/>
 
 			<param name="SIM_enable_SIM" value="0"/>
 			<param name="SIM_simIP" value="127.0.0.1"/>
@@ -44,6 +57,22 @@
 			<param name="RS_enable_FILTER_Spatial" value="0"/>
 			<param name="RS_enable_FILTER_Temporal" value="1"/>
 			<param name="RS_enable_FILTER_Hole" value="1"/>
+			<param name="RS_TYoverYG" value="1.40"/>
+			<param name="RS_TBoverBP" value="1.40"/>
+			<param name="RS_length_TC" value="0.005"/>
+			<param name="RS_ZratioLimit" value="1.02"/>
+			<param name="RS_updateLastZ" value="0"/>
+			<param name="RS_ShowTime" value="0"/>
+			<param name="RS_ShowImage" value="1"/>
+
+			<!--
+			<param name="YOLO_ModelPath" value="C:/Users/y4236/Documents/ToolDetectYOLO/yolov7/CobottaTool/result/train8/weights/last.onnx"/>
+			-->
+			<param name="YOLO_ModelPath" value="C:/Users/y4236/Documents/ToolDetectYOLO/yolov7/CobottaTool/result/train19/weights/best.onnx"/>
+			<param name="YOLO_enable_GPU" value="1"/>
+			<param name="YOLO_Conf" value="0.3"/>
+			<param name="YOLO_IoU" value="0.6"/>
+
 
 
 			<!-- <rosparam command="load" file="$(find robot_solver)/config/CobottaDH.yaml"/> -->

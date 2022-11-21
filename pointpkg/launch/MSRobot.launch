@@ -29,6 +29,7 @@
             <param name="PCL_enable_DetectWithSim" value="0"/>
 			<param name="PCL_enable_DrawResult" value="1"/>
 			<param name="PCL_enable_Recognite" value="0"/>
+			<param name="PCL_enable_DetectWithYOLO" value="1"/>
 
 
 			<param name="SIM_simIP" value="127.0.0.1"/>
@@ -45,6 +46,11 @@
 			<param name="RS_enable_FILTER_Spatial" value="0"/>
 			<param name="RS_enable_FILTER_Temporal" value="1"/>
 			<param name="RS_enable_FILTER_Hole" value="1"/>
+
+			<param name="YOLO_ModelPath" value="C:/Users/y4236/Documents/ToolDetectYOLO/yolov7/CobottaTool/result/train8/weights/last.onnx"/>
+			<param name="YOLO_enable_GPU" value="1"/>
+			<param name="YOLO_Conf" value="0.25"/>
+			<param name="YOLO_IoU" value="0.65"/>
 
 
 			<!-- <rosparam command="load" file="$(find robot_solver)/config/CobottaDH.yaml"/> -->

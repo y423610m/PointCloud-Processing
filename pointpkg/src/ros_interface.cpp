@@ -24,7 +24,7 @@ ROSInterface::ROSInterface()
 	threshold_[2] = 0.089;
 
 	rate = ROSParam::getIntParam("MAIN_rate");
-	delay = ROSParam::getFloatParam("ROS_delay");
+	delay = ROSParam::getDoubleParam("ROS_delay");
 	use_color_ = ROSParam::getIntParam("ROS_use_color");
 
 	ROSInterface::load_parameters(ROSParam::getStringParam("ROS_param_txt"));

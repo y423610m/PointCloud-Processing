@@ -20,6 +20,7 @@
 #define PCL_ID_SetROSParam 14
 #define PCL_ID_CvtVecToPCD 15
 #define PCL_ID_CvtPCDToVec 16
+#define PCL_ID_DetectWithYOLO 17
 
 
 // <31
@@ -216,10 +217,11 @@ private:
 
 
 	//cloud_xyzrgbaを姿勢変換 3
+	//注意 cloud_subは関数内で一時的に使うだけで，座標変換後の点群データはcloud_mainに格納されている．
 	double transformation_parameters_[6];//x,y,z,anglex,y,z
-	void _transform() {
+	void _transform(CloudPtr& cloud_main, CloudPtr& cloud_sub) {
 		if (!enable_[PCL_ID_Transform]) return;
-		if (cloud_main_->size() == 0) return;
+		if (cloud_main->size() == 0) return;
 
 		Eigen::Affine3f transform = Eigen::Affine3f::Identity();
 		transform.translation() << transformation_parameters_[0], transformation_parameters_[1], transformation_parameters_[2];
@@ -237,12 +239,12 @@ private:
 		transform.rotate(Eigen::AngleAxisf(transformation_parameters_[5], Eigen::Vector3f::UnitZ()));
 
 
-		if (cloud_sub_->size()) cloud_sub_->clear();
-		pcl::transformPointCloud(*cloud_main_, *cloud_sub_, transform);
+		if (cloud_sub->size()) cloud_sub->clear();
+		pcl::transformPointCloud(*cloud_main, *cloud_sub, transform);
 		//pcl::transformPointCloud(*cloud_tmp, *cloud_main_, rotY);
 		//pcl::transformPointCloud(*cloud_main_, *cloud_tmp, rotZ);
 		//pcl::transformPointCloud(*cloud_tmp, *cloud_main_, transform);
-		cloud_main_.swap(cloud_sub_);
+		cloud_main.swap(cloud_sub);
 	}
 
 
@@ -321,6 +323,10 @@ private:
 			nearest_pair_coherence.reset(new NearestPairPointCloudCoherence<PointTypeT>());
 			search.reset(new pcl::search::Octree<PointTypeT>(0.01));
 			cloud_downsampled_.reset(new Cloud());
+			//この下３つ使ってない？
+			cloud_target_remover_ref_.reset(new Cloud);
+			cloud_target_remover_ref_downsampled_.reset(new Cloud);
+			Rcenter_ref_.reset(new Cloud);
 
 			ParticleT bin_size;
 			bin_size.x = 0.01f;
@@ -1094,6 +1100,7 @@ private:
 		enable_[PCL_ID_DetectWithSim] = ROSParam::getIntParam("PCL_enable_DetectWithSim");
 		enable_[PCL_ID_Recognite] = ROSParam::getIntParam("PCL_enable_Recognite");
 		enable_[PCL_ID_DrawResult] = ROSParam::getIntParam("PCL_enable_DrawResult");
+		enable_[PCL_ID_DetectWithYOLO] = ROSParam::getIntParam("PCL_enable_DetectWithYOLO");
 
 		//EL(enable_)
 	}
@@ -1101,19 +1108,57 @@ private:
 
 
 	//vectorからpcdへ変換(cloud) 15
+	//YOLO用に色が範囲外だったらcloud_yolo_に追加
 	void _convert_array_to_pcd(int& number_of_points, std::vector<float>& points, std::vector<int>& color) {
 		cloud_main_->clear();
+		for (int i = 0; i < 2; i++) {
+			cloud_yolo_[i]->clear();
+		}
 		if (points.size() == 0) return;
 
-		cloud_main_->resize(points.size() / 3);
-		for (int i = 0; i < points.size() / 3; i++) {
-			(*cloud_main_)[i].x = points[3 * i + 0];
-			(*cloud_main_)[i].y = points[3 * i + 1];
-			(*cloud_main_)[i].z = points[3 * i + 2];
-			(*cloud_main_)[i].r = color[3 * i + 0];
-			(*cloud_main_)[i].g = color[3 * i + 1];
-			(*cloud_main_)[i].b = color[3 * i + 2];
-			(*cloud_main_)[i].a = 255;
+		int sz = int(points.size()) / 3;
+
+		//cloud_main_->resize(sz);
+
+		const int mask = 255;
+
+		for (int i = 0; i < sz; i++) {
+			//0<=r<=255ならツール無関係の点
+			if (color[3 * i]<256) {
+				cloud_main_->emplace_back(PointTypeT());
+				auto& p = cloud_main_->back();
+				p.x = points[3 * i + 0];
+				p.y = points[3 * i + 1];
+				p.z = points[3 * i + 2];
+				p.r = color[3 * i + 0];
+				p.g = color[3 * i + 1];
+				p.b = color[3 * i + 2];
+				p.a = 255;
+			}
+			//ツール 1(Yellow&Green)
+			else if(color[3 * i] < 512) {
+				cloud_yolo_[0]->emplace_back(PointTypeT());
+				auto& p = cloud_yolo_[0]->back();
+				p.x = points[3 * i + 0];
+				p.y = points[3 * i + 1];
+				p.z = points[3 * i + 2];
+				p.r = color[3 * i + 0] & mask;
+				p.g = color[3 * i + 1] & mask;
+				p.b = color[3 * i + 2] & mask;
+				p.a = 255;
+			}
+			//ツール 2(Yellow&Green)
+			else{//r<1024
+				cloud_yolo_[1]->emplace_back(PointTypeT());
+				auto& p = cloud_yolo_[1]->back();
+				p.x = points[3 * i + 0];
+				p.y = points[3 * i + 1];
+				p.z = points[3 * i + 2];
+				p.r = color[3 * i + 0] & mask;
+				p.g = color[3 * i + 1] & mask;
+				p.b = color[3 * i + 2] & mask;
+				p.a = 255;
+			}
 		}
 	}
 
@@ -1128,7 +1173,8 @@ private:
 		points.resize(cloud_main_->size() * 3);
 		color.resize(cloud_main_->size() * 3);
 
-		for (int i = 0; i < cloud_main_->size();i++) {
+		int sz = cloud_main_->size();
+		for (int i = 0; i < sz;i++) {
 			points[3 * i + 0] = (*cloud_main_)[i].x;
 			points[3 * i + 1] = (*cloud_main_)[i].y;
 			points[3 * i + 2] = (*cloud_main_)[i].z;
@@ -1140,8 +1186,115 @@ private:
 	}
 
 
+	//RGBデータからYOLOでツール位置を推定したうえで接触判定をする 17
+	std::array<CloudPtr, 2> cloud_yolo_;//鉗子，剪刀生データ格納用(マーカーx2,先端位置)
+	CloudPtr cloud_yolo_sub_;//transform用
+	std::array<std::unique_ptr<ContactDetector2<PointTypeT>>, 2> contact_detector_yolo_;
+	struct LastToolPose {
+		LastToolPose() = default;
+		bool found_ = false;
+		std::array<std::array<double, 3>,3> positions_;//(tip,M1,M2) x (x,y,z)
+		void update(CloudPtr& cloud) {
+			//ES("update") ES(cloud->size())
+			if (found_) {
+				double w = 2.0;//前回のデータに対して，何倍の影響力を持たせるか
+				for (int i = 0; i < 3; i++) {
+					(*cloud)[i].x = ((*cloud)[i].x * w + positions_[i][0]) / 3;
+					(*cloud)[i].y = ((*cloud)[i].y * w + positions_[i][1]) / 3;
+					(*cloud)[i].z = ((*cloud)[i].z * w + positions_[i][2]) / 3;
+				}
+			}
+			found_ = true;
+			for (int i = 0; i < 3; i++) {//tip,M1,M2
+				positions_[i][0] = (*cloud)[i].x;
+				positions_[i][1] = (*cloud)[i].y;
+				positions_[i][2] = (*cloud)[i].z;
+			}
+			//ES("escape")
+		}
+	};
+	std::array<LastToolPose, 2> lastToolPoses_;
 
-	//適当に点群を編集するとき用 11
+
+	void _detect_contact_with_YOLO() {
+		//PL("a")
+		if (!enable_[PCL_ID_DetectWithYOLO]) return;
+		if (!initialized_[PCL_ID_DetectWithYOLO]) {
+			//ROSParamのパラメータ名
+			std::string rgb_param_names[2] = { "PCL_YOLO_RGB_YG", "PCL_YOLO_RGB_BP" };
+			for (int i = 0; i < 2; i++) {
+				//rrrgggbbbの形式(ex:255255255, 255000255, 255255)
+				int rgb = ROSParam::getIntParam(rgb_param_names[i]);
+				int b = rgb % 1000; rgb /= 1000;
+				int g = rgb % 1000; rgb /= 1000;
+				int r = rgb % 1000; rgb /= 1000;
+				PS("pcl 1195") ES(r) ES(g) EL(b)
+				std::array<int, 3> arr_rgb; arr_rgb[0] = r, arr_rgb[1] = g, arr_rgb[2] = b;
+				contact_detector_yolo_[i].reset(new ContactDetector2<PointTypeT>(
+					ROSParam::getStringParam("PCL_pcd_target")
+					, ROSParam::getStringParam("PCL_pcd_mask")
+					, ROSParam::getStringParam("PCL_pcd_tip")
+					, arr_rgb
+					));
+			}
+
+			initialized_[PCL_ID_DetectWithYOLO] = true;
+		}
+
+		for (int i = 0; i < 2; i++) {
+
+			if (cloud_yolo_[i]->size() != 3) {
+				lastToolPoses_[i].found_ = false;
+				continue;
+			}
+
+			//並べ替え Tip, M1(Yellow), M2(Green)の順で
+			sort(cloud_yolo_[i]->begin(), cloud_yolo_[i]->end(), [](PointTypeT& a, PointTypeT& b) {
+				return a.r > b.r;
+				});
+			
+			lastToolPoses_[i].update(cloud_yolo_[i]);
+
+			_transform(cloud_yolo_[i], cloud_yolo_sub_);
+
+			/*
+			RealSenseInterfaceでツール上のマーカー（Yellow, Green）を検出．
+			マーカー及びツール先端予測位置を点群データに追加．その際，色データに256(==0b100000000 == 1<<8)足しておく．
+
+			PCL2::convertArrayToPCDで，255を超える色データがあった場合，color&255としてcloud_yolo_に追加．
+			実用上，接触判定には位置データが必要であり，色データは不要．
+
+			*/
+
+			//Green->Yellowの方向ベクトル
+			Eigen::Vector3f GY((*cloud_yolo_[i])[1].x - (*cloud_yolo_[i])[2].x, (*cloud_yolo_[i])[1].y - (*cloud_yolo_[i])[2].y, (*cloud_yolo_[i])[1].z - (*cloud_yolo_[i])[2].z);
+			//ツール初期姿勢（y方向正）からの姿勢変化クォータニオン
+			Eigen::Quaternionf q = Eigen::Quaternionf::FromTwoVectors(Eigen::Vector3f::UnitY(), GY);
+
+			//
+			Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+			transform *= q.matrix();
+			transform.translation() << (*cloud_yolo_[i])[0].x, (*cloud_yolo_[i])[0].y, (*cloud_yolo_[i])[0].z;
+
+			//transform.rotate(Eigen::AngleAxisf(transformation_parameters_[3], Eigen::Vector3f::UnitX()));
+			//transform.rotate(Eigen::AngleAxisf(transformation_parameters_[4], Eigen::Vector3f::UnitY()));
+			//transform.rotate(Eigen::AngleAxisf(transformation_parameters_[5], Eigen::Vector3f::UnitZ()));
+
+			contact_detector_yolo_[i]->transform_init(transform);
+			contact_detector_yolo_[i]->remove_and_detect(cloud_main_);
+
+
+
+			//必要に応じて，マーカーなどをMainの点群に追加しておく．
+			if (true) for (const auto& p : *cloud_yolo_[i]) {
+				cloud_main_->emplace_back(p);
+				//EL(int(cloud_main_->back().a))
+			}
+		}
+	}
+
+
+	//適当に点群を編集するとき用 
 	float tx = -0.08;
 	float ty = -0.13;
 	float tz = 0.15;
@@ -1194,25 +1347,28 @@ PCL2<PointTypeT>::PCL2() :
 	//,initialized_(vector<bool>(30))
 	//----basic point clouds init---
 	cloud_main_(new Cloud())
-	,cloud_sub_(new Cloud())
-
-	//---track()---
-	, cloud_target_remover_ref_(new Cloud)
-	, cloud_target_remover_ref_downsampled_(new Cloud)
-	, Rcenter_ref_(new Cloud)
-
-	, contact_detector_(new ContactDetector2<PointTypeT>(ROSParam::getStringParam("PCL_pcd_target")
+	, cloud_sub_(new Cloud())
+	//detect contact with yolo
+	, contact_detector_(new ContactDetector2<PointTypeT>(
+		ROSParam::getStringParam("PCL_pcd_target")
 		, ROSParam::getStringParam("PCL_pcd_mask")
 		, ROSParam::getStringParam("PCL_pcd_tip")
-	))
+		))
 {
 	std::cerr << "pcl: constructing" << std::endl;
 
+	for (int i = 0; i < 32; i++) enable_[i] = false;
+	for (int i = 0; i < 32; i++) initialized_[i] = false;
 
-	enable_[PCL_ID_PCL]= ROSParam::getIntParam("PCL_enable_PCL");
+
+	enable_[PCL_ID_PCL] = ROSParam::getIntParam("PCL_enable_PCL");
 	if (!enable_[PCL_ID_PCL]) return;
 
 	this->_setROSParam();
+
+	for (int i = 0; i < 2; i++) cloud_yolo_[i].reset(new Cloud);
+	cloud_yolo_sub_.reset(new Cloud);
+	
 
 	cloud_main_->reserve(1e6);
 	cloud_sub_->reserve(1e6);
@@ -1255,7 +1411,7 @@ void PCL2<PointTypeT>::update(int& number_of_points, std::vector<float>& points,
 
 
 	//カメラ->coppeliasimモデル座標変換
-	PCL2<PointTypeT>::_transform();
+	PCL2<PointTypeT>::_transform(cloud_main_, cloud_sub_);
 
 	//範囲外除去
 	PCL2<PointTypeT>::_filterPassThrough();
@@ -1276,6 +1432,8 @@ void PCL2<PointTypeT>::update(int& number_of_points, std::vector<float>& points,
 	PCL2<PointTypeT>::_detect_contact_with_coppeliasim();
 
 
+	//接触判定　（YOLO）
+	PCL2<PointTypeT>::_detect_contact_with_YOLO();
 
 
 	//新規window上に点群描画．PCL2<PointTypeT>::PCL()のviewerの初期化必要

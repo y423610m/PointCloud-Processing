@@ -10,7 +10,11 @@
 #include <vector>
 #include <queue>
 
+#ifdef _WIN32
 #include <windows.h>
+#else
+
+#endif //_WIN32
 
 
 class Manager {
@@ -27,6 +31,9 @@ private:
 	std::vector<float> points_;
 	std::vector<int> color_;
 
+	bool showTime_ = false;
+
+
 
 	int points_size_;
 
@@ -38,9 +45,14 @@ public:
 	Manager();
 	void update();
 	bool check_loop() {
-		return ros_interface_->check_loop() 
+		return ros_interface_->check_loop()
 			&& coppeliasim_interface_->check_loop()
-			&& !(bool)(GetKeyState(VK_ESCAPE) & 0x8000);
+		#ifdef _WIN32
+			&& !(bool)(GetKeyState(VK_ESCAPE) & 0x8000)
+		#else
+
+		#endif //_WIN32
+			;
 	}
 
 	//ROS

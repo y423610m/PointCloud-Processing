@@ -10,10 +10,14 @@ GUI::GUI(Manager* operator_side_manager) :
 	manager_(operator_side_manager)
 	,t(clock())
 {
+
+	if (!ROSParam::getIntParam("GUI_enable_GUI")) return;
+
 	//std::cerr << "GUI constructed" << std::endl;
 	cvui::init(WINDOW2_NAME);
 	frame_ = cv::Mat(cv::Size(800, 400), CV_8UC3);
 
+	initialized_ = true;
 
 }
 
@@ -22,6 +26,7 @@ GUI::~GUI() {
 }
 
 void GUI::update() {
+	if (!initialized_) return;
 
 	frame_ = cv::Scalar(49, 52, 49);
 	int x, y;

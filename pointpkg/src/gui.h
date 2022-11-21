@@ -16,6 +16,7 @@ class GUI
 {
 private:
 	cv::Mat frame_;
+	bool initialized_ = false;
 	double a = 12.4;
 	Manager* manager_;
 	clock_t t;

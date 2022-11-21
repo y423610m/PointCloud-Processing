@@ -7,6 +7,9 @@ string(APPEND CMAKE_CXX_FLAGS " /W4")#onnx
 ## Compile as C++11, supported in ROS Kinetic and newer
 #add_compile_options(-std=c++17)
 
+
+add_compile_options(/bigobj)
+
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
@@ -131,7 +134,9 @@ src/yolo_utils.cpp
 
 
 )
+
 target_compile_options(pointer PUBLIC -O2)
+
 
 target_link_libraries(pointer
    ${catkin_LIBRARIES}
@@ -156,6 +161,14 @@ src/cad/pcd_maker.cpp
 )
 target_link_libraries(pcd_maker
    ${catkin_LIBRARIES}
+)
+
+add_executable(svm_train
+src/svm/svm.cpp
+)
+target_link_libraries(svm_train
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBS}
 )
 
 

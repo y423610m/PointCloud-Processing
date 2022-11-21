@@ -6,31 +6,14 @@
 
 #include <map>
 #include <thread>
+#include <array>
+#include <mutex>
 
 #include "yolo_detector.h"
 #include <memory>
 
 
-/*
 
-getPointCloud()
-
-
-/////////
-
-void updateQueue:enqueueにfilterd_frameを加える
-
-thread:while(1) updateEnqueue
-
-getCloud:enqueueから取り出してvectorにセット
-
-
-///////////////////
-framesetはframe(depth, color)を内包
-
-
-
-*/
 
 struct filter_slider_ui
 {
@@ -61,6 +44,8 @@ class RealSenseInterface {
 private:
 
 	bool initialized_ = false;
+	bool showTime_ = false;
+	bool showImage_ = false;
 
 	rs2::pipeline pipe_;
 	rs2::pointcloud pc_;
@@ -70,7 +55,9 @@ private:
 	rs2::frame_queue depth_que_;
 	rs2::frame_queue color_que_;
 
+	//並列処理予定だったが，しないほうが速い...
 	std::thread thread_;
+	std::mutex mtx_, mtx2_;
 
 	std::vector<filter_options> filters_;
 	std::vector<double> threshold_;
@@ -78,15 +65,48 @@ private:
 	const std::string disparity_filter_name = "Disparity";
 	rs2::disparity_transform* disparity_to_depth;
 
-	//for YOLO
-	std::unique_ptr<YOLODetector> yolov7_;
-	const float confThreshold = 0.25f;
-	const float iouThreshold = 0.65f;
+	int RSImageHeight_ = 480;
+	int RSImageWidth_ = 640;
+	int RSDepthHeight_ = 480;
+	int RSDepthWidth_ = 848;
+	int RSFps_ = 15;
 
+	//for YOLO
+	cv::Mat image_;
+	cv::Mat HSVImage_;
+	std::vector<std::array<double, 3>> classMeanPos_;
+	std::unique_ptr<YOLODetector> yolov7_;
+	//const float confThreshold = 0.25f;
+	//const float iouThreshold = 0.65f;
+
+	std::vector<Detection> detection_result_;
+	void _findMarkers(cv::Mat& image, std::vector<Detection>& result);
+	std::vector<std::vector<int>> classIdImage_;
+	const int classNum = 6;
+	// class3DPositions[i]:=classIdがiである点群のリスト
+	//std::array<std::vector<std::array<double, 3>>, classNum> class3DPositions;
+	std::vector<std::vector<std::array<double, 3>>> class3DPositions_;
+
+	vector<bool> found_;
+	//(先端～黄色マーカー)/(黄色マーカー～緑マーカー)の比率
+	double ratio_ty_over_yg = 1.4;
+	std::vector<double> ratio_tm1_over_m1m2_;
+	//ツールの半径(厳密には，ツール中心と，黄色マーカー～緑マーカーを結んだ直線の距離)
+	double length_tc = 0.005;
+	double ZratioLimit_ = 1.02;
+	bool updateLastZ_ = true;
+	void _calcPositions(std::vector<float>& points, std::vector<int>& color);
+
+	void _getMatImage(cv::Mat& Image, const rs2::video_frame& texture, const uint8_t* texture_data);
 
 	void _setFilters();
 	void _process();
-	
+
+
+	int bytes_per_pixel = -1;
+	int stride_in_bytes = -1;
+	void _setBytesAndStride(const rs2::video_frame& texture);
+	inline void RealSenseInterface::_getTextureColor(std::array<uint8_t, 3>& rgb, const rs2::video_frame& texture, const uint8_t* texture_data, float u, float v, bool& isOut, int& classId);
 
 
 public:
@@ -97,26 +117,17 @@ public:
 	void getPointCloud2(std::vector<float>& points, std::vector<int>& color);
 };
 
+/* TO DO
 
-/*
-	
-	///ONNXに変換忘れるなー（笑）
-	
-std::string modelPath = "C:/Users/y4236/Documents/ToolDetectYOLO/yolov7/CobottaTool/result/train8/weights/last.onnx";
-bool isGPU = false;
-YOLODetector detector(modelPath, isGPU, cv::Size(480, 480));
 
-std::string imagePath = "C:/Users/y4236/Documents/ToolDetectYOLO/yolov7/CobottaTool/train/141741821192.jpg";
-cv::Mat image = cv::imread(imagePath);
-cv::resize(image, image, cv::Size(480, 480));
-EL(image.size())
+YOLO->480*480
+RealSense->480*640
 
-std::vector<Detection> result;
-result = detector.detect(image, confThreshold, iouThreshold);
-std::vector<std::string> classNames = { "Tool", "Yellow", "Green", "Blue", "Pink" };
-for (int i = 5; i <= 100; i++) classNames.push_back(to_string(i));
-utils::visualizeDetection(image, result, classNames);
-cv::imshow("result", image);
-//cv::imwrite("result.jpg", image);
-cv::waitKey(0);
+classImage->480*640?
+result->?
+
+480と640の使い分け，変換部分不十分．
+
+
+
 */

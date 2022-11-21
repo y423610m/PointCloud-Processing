@@ -17,6 +17,8 @@ using namespace std;
     #define ES(a) while(0){}
     #define EL(a) while(0){}
 #endif
+//–ˆ‰ñ‚Ìflush–hŽ~
+//#define endl "\n"
 
 //vector output 
 template <typename T>
