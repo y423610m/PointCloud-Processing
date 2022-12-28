@@ -36,6 +36,7 @@ private:
 	pcl::PointIndices::Ptr inliers;
 
 
+
 	//pcl::ApproximateVoxelGrid<PointTypeT> grid_;
 	//void _gridSampleApprox(const CloudConstPtr& cloud, Cloud& result, double leaf_size) {
 	//	//pcl::ApproximateVoxelGrid<pcl::PointXYZRGBA> grid;
@@ -59,7 +60,7 @@ public:
 		, cloud_mask_transformed_(new Cloud())
 		, cloud_tip_transformed_(new Cloud())
 		, cloud_sub_(new Cloud())
-		, octree(pcl::octree::OctreePointCloudChangeDetector<PointTypeT>(0.005))
+		, octree(pcl::octree::OctreePointCloudChangeDetector<PointTypeT>(0.01))
 		, inliers(new pcl::PointIndices())
 		, consensus_(new Cloud())
 		, different_(new Cloud())
@@ -68,7 +69,7 @@ public:
 		downSampleTargetCloud_ = ROSParam::getIntParam("CD_DownSampleTargetCloud");
 		showConsensus_ = ROSParam::getIntParam("CD_ShowConsensus");
 		showTargetTool_ = ROSParam::getIntParam("CD_ShowTargetTool");
-
+		showContactPoints_ = ROSParam::getIntParam("CD_ShowContactPoints_");
 		//TO DO ì_åQñßìxÇâ∫Ç∞ÇÈ
 		pcl::ApproximateVoxelGrid<PointTypeT> grid;
 		double leaf_size = 0.005;
@@ -175,6 +176,7 @@ public:
 	CloudPtr different_;
 	bool showConsensus_ = true;
 	bool showTargetTool_ = true;
+	bool showContactPoints_ = false;
 	void remove_and_detect(CloudPtr& cloud) {
 		//cloud_ Ç∆ resultÇÃàÍívåüèo
 		//pcl::octree::OctreePointCloudChangeDetector<PointTypeT> octree(0.005);
@@ -232,15 +234,18 @@ public:
 			float R = 0.01;
 			int num = 200;
 			int n = kdtree.radiusSearch(searchPoint, 0.020, pointIdxRadiusSearch, pointRadiusSquareDistance);
+
+
+
 			//std::cerr << "number of nearest point 0.020 " << n << std::endl;
 			//PS(n);
-			n = kdtree.radiusSearch(searchPoint, 0.015, pointIdxRadiusSearch, pointRadiusSquareDistance);
+			//n = kdtree.radiusSearch(searchPoint, 0.015, pointIdxRadiusSearch, pointRadiusSquareDistance);
 			//std::cerr << "number of nearest point 0.015 " << n << std::endl;
 			//PS(n);
-			n = kdtree.radiusSearch(searchPoint, 0.010, pointIdxRadiusSearch, pointRadiusSquareDistance);
+			//n = kdtree.radiusSearch(searchPoint, 0.010, pointIdxRadiusSearch, pointRadiusSquareDistance);
 			//std::cerr << "number of nearest point 0.010 " << n << std::endl;
 			//PS(n);
-			n = kdtree.radiusSearch(searchPoint, 0.005, pointIdxRadiusSearch, pointRadiusSquareDistance);
+			//n = kdtree.radiusSearch(searchPoint, 0.005, pointIdxRadiusSearch, pointRadiusSquareDistance);
 			//std::cerr << "number of nearest point 0.005 " << n << std::endl;
 			//PL(n);
 
@@ -253,6 +258,9 @@ public:
 			r=0.015Ç≈400í¥Ç¶ÇΩÇÁê⁄êG
 			*/
 
+			if (showContactPoints_) for (auto id : pointIdxRadiusSearch) {
+				(*cloud)[id].r = 255;
+			}
 
 		}
 
@@ -298,5 +306,9 @@ public:
 	CloudPtr get_cloud_target_transformed() { return cloud_target_transformed_; }
 	//CloudPtr get_cloud_mask() { return cloud_mask_transformed_; }
 	//CloudPtr get_cloud_tip() { return cloud_tip_transformed_; }
+
+	~ContactDetector2(){
+		PL("~CD");
+	}
 };
 

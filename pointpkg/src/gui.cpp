@@ -22,6 +22,7 @@ GUI::GUI(Manager* operator_side_manager) :
 }
 
 GUI::~GUI() {
+	PL("~GUI")
 	//delete manager_;
 }
 

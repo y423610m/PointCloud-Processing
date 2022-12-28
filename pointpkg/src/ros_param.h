@@ -8,6 +8,9 @@ class ROSParam {
 	static ros::NodeHandle* pnh;
 	static std::string namespace_;
 	static std::string nodename_;
+	~ROSParam() {
+		std::cerr << "~ROSParam" << std::endl;
+	}
 
 public:
 	static void init();

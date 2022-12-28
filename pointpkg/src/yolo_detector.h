@@ -6,6 +6,7 @@
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "C:/Users/y4236/Documents/pcws/src/pointpkg/onnxruntime-win-x64-gpu-1.12.1/lib/onnxruntime.lib")
+//https://github.com/lutzroeder/netron
 
 #include <string>
 using namespace std;
@@ -37,7 +38,9 @@ public:
         const cv::Size& inputSize,
         const cv::Size& originalImageSize);
 
-    std::vector<Detection> detect(cv::Mat& image);
+    ~YOLODetector();
+
+    std::vector<Detection> detect(cv::Mat& image, bool showInference = false);
     void setConfThreshold(float confThreshold) {
         confThreshold_ = confThreshold;
     }

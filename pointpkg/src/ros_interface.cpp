@@ -327,8 +327,10 @@ void ROSInterface::save_parameters(std::string file_path) {
 }
 
 ROSInterface::~ROSInterface() {
+	PS("~ROSInterface");
 	ROSInterface::save_parameters(ROSParam::getStringParam("ROS_param_txt"));
 	//std::cerr << "qqqqq" << std::endl;
+	PL("~ROSInterface");
 }
 
 

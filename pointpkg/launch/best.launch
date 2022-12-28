@@ -1,0 +1,103 @@
+<launch>
+    <group ns="pointcloud_processing">
+        <node pkg="pointpkg" type="pointer" name="pointer_node">
+
+            <param name="MAIN_rate" value="100"/> <!--loop rate-->
+			<param name="MAIN_ShowTime" value="0"/>
+
+
+			<param name="COMMON_robot_type" value="1"/> <!--1:Cobotta 2:MSRobot-->
+
+
+			<param name="MANAGER_ShowTime" value="0"/>
+
+			<param name="GUI_enable_GUI" value="1"/>
+
+			<param name="ROS_delay" value="0.001"/> <!--time delay-->
+            <param name="ROS_param_txt" value="C:/Users/y4236/Documents/pcws/src/pointpkg/ros_interface_parameters_MSR.txt"/>
+			<param name="ROS_use_color" value="1"/>
+
+
+			<param name="PCL_pcd_type" value="4"/>
+            <param name="PCL_pcd_target" value="C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_blue_target.pcd"/>
+            <param name="PCL_pcd_mask" value="C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_blue_mask.pcd"/>
+            <param name="PCL_pcd_tip" value="C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_blue_tip.pcd"/>
+            <param name="PCL_param_txt" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcl_interface_parameters.txt"/>
+            <param name="PCL_pcd_read" value="C:\Users\y4236\Documents\pcws\src\pointpkg\pcd\CobottaCommon\CobottaToolTip_target.pcd"/>
+            <param name="PCL_pcd_write" value="C:/Users/y4236/Documents/pcws/src/pointpkg/pcd/MS_xyzrgba99/"/>
+			<param name="PCL_YOLO_RGB_YG" value="255000000"/>
+			<param name="PCL_YOLO_RGB_BP" value="255000"/>
+			<param name="PCL_CalibrationYOLO" value="0"/>
+			<param name="PCL_ShowTipPosition0" value="1"/>
+			<param name="PCL_ShowTipPosition1" value="0"/>
+			<param name="PCL_ShowMarkersMeanPosition0" value="0"/>
+			<param name="PCL_ShowMarkersMeanPosition1" value="0"/>
+			<param name="PCL_CalibrateO" value="1"/>
+			<param name="PCL_CalibrateRotZ" value="0"/><!--vertical推奨 -->
+			<param name="PCL_ShowCoordinate" value="1"/>
+			<param name="PCL_Show200Frames" value="0"/>
+			<param name="PCL_BG_R" value="0.2"/>
+			<param name="PCL_BG_G" value="0.2"/>
+			<param name="PCL_BG_B" value="0.2"/>
+
+
+			<param name="PCL_enable_PCL" value="1"/>
+			<param name="PCL_enable_ReadPCD" value="0"/>
+			<param name="PCL_enable_WritePCD" value="0"/>
+			<param name="PCL_enable_Transform" value="1"/>
+			<param name="PCL_enable_PassThrough" value="0"/>
+			<param name="PCL_enable_ParticleFilter" value="0"/>
+			<param name="PCL_enable_DetectWithSim" value="0"/>
+			<param name="PCL_enable_Recognite" value="0"/>
+			<param name="PCL_enable_RemovePlane" value="0"/>
+			<param name="PCL_enable_DrawResult" value="1"/>
+			<param name="PCL_enable_DetectWithYOLO" value="1"/>
+			<param name="PCL_enable_CalibrationHorizon" value="0"/>
+			<param name="PCL_enable_CalibrationVertical" value="0"/>
+
+			<param name="CD_DownSampleTargetCloud" value="0"/>
+			<param name="CD_ShowConsensus" value="1"/>
+			<param name="CD_ShowTargetTool" value="0"/>
+			<param name="CD_ShowContactPoints_" value="0"/>
+
+			<param name="SIM_enable_SIM" value="0"/>
+			<param name="SIM_simIP" value="127.0.0.1"/>
+            <param name="SIM_PortNumber" value="19998"/>
+            <param name="SIM_param_txt" value="C:/Users/y4236/Documents/pcws/src/pointpkg/coppeliasim_interface_parameters.txt"/>
+            <param name="SIM_LabView_connect" value="0"/>
+            <param name="SIM_LabView_IP" value="192.168.1.100"/>
+            <param name="SIM_LabView_Port" value="6430"/>
+
+			<param name="RS_enable_RS" value="1"/>
+			<param name="RS_enable_FILTER_Decimate" value="0"/>
+			<param name="RS_enable_FILTER_Disparity" value="1"/>
+			<param name="RS_enable_FILTER_Spatial" value="0"/>
+			<param name="RS_enable_FILTER_Temporal" value="1"/>
+			<param name="RS_enable_FILTER_Hole" value="1"/>
+			<param name="RS_TYoverYG" value="1.40"/>
+			<param name="RS_TBoverBP" value="1.40"/>
+			<param name="RS_Length_TC" value="0.0015"/>
+			<param name="RS_ZratioLimit" value="1.05"/>
+			<param name="RS_updateLastZ" value="0"/>
+			<param name="RS_ShowTime" value="0"/>
+			<param name="RS_ShowImage" value="1"/>
+			<param name="RS_ShowInference" value="0"/>
+			<param name="RS_EnableMarkerPoseCompensater" value="0"/>
+			<param name="RS_EnableCompensateMarkersDistance" value="1"/>
+
+			<!--
+			<param name="YOLO_ModelPath" value="C:/Users/y4236/Documents/ToolDetectYOLO/yolov7/CobottaTool/result/train8/weights/last.onnx"/>
+			-->
+			<param name="YOLO_ModelPath" value="C:/Users/y4236/Documents/ToolDetectYOLO/yolov7/CobottaTool/result/train20/weights/best.onnx"/>
+			<param name="YOLO_enable_GPU" value="1"/>
+			<param name="YOLO_Conf" value="0.3"/>
+			<param name="YOLO_IoU" value="0.6"/>
+
+			<param name="MPC_ModelPath" value="C:/Users/y4236/Documents/pcws/src/pointpkg/model.onnx"/>
+
+
+
+			<!-- <rosparam command="load" file="$(find robot_solver)/config/CobottaDH.yaml"/> -->
+        </node>
+    </group>
+</launch>

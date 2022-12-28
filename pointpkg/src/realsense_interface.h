@@ -11,6 +11,7 @@
 
 #include "yolo_detector.h"
 #include <memory>
+#include "marker_position_compensater.h"
 
 
 
@@ -60,22 +61,24 @@ private:
 	std::mutex mtx_, mtx2_;
 
 	std::vector<filter_options> filters_;
-	std::vector<double> threshold_;
+	std::vector<float> threshold_;
 
 	const std::string disparity_filter_name = "Disparity";
 	rs2::disparity_transform* disparity_to_depth;
 
 	int RSImageHeight_ = 480;
 	int RSImageWidth_ = 640;
-	int RSDepthHeight_ = 480;
-	int RSDepthWidth_ = 848;
+	//(W,H) = (640,480),(848,480), (1280,720)
+	int RSDepthHeight_ = 720;
+	int RSDepthWidth_ = 1280;
 	int RSFps_ = 15;
 
 	//for YOLO
 	cv::Mat image_;
 	cv::Mat HSVImage_;
-	std::vector<std::array<double, 3>> classMeanPos_;
+	std::vector<std::array<float, 3>> classMeanPos_;
 	std::unique_ptr<YOLODetector> yolov7_;
+	bool showInference_ = false;
 	//const float confThreshold = 0.25f;
 	//const float iouThreshold = 0.65f;
 
@@ -85,15 +88,18 @@ private:
 	const int classNum = 6;
 	// class3DPositions[i]:=classIdがiである点群のリスト
 	//std::array<std::vector<std::array<double, 3>>, classNum> class3DPositions;
-	std::vector<std::vector<std::array<double, 3>>> class3DPositions_;
+	std::vector<std::vector<std::array<float, 3>>> class3DPositions_;
 
 	vector<bool> found_;
 	//(先端～黄色マーカー)/(黄色マーカー～緑マーカー)の比率
-	double ratio_ty_over_yg = 1.4;
-	std::vector<double> ratio_tm1_over_m1m2_;
+	float ratio_ty_over_yg = 1.4;
+	std::vector<float> ratio_tm1_over_m1m2_;
+	bool enableMarkerPoseCompensater_ = false;
+	unique_ptr<MarkerPositionCompensater> marker_position_compensater_;
 	//ツールの半径(厳密には，ツール中心と，黄色マーカー～緑マーカーを結んだ直線の距離)
 	double length_tc = 0.005;
 	double ZratioLimit_ = 1.02;
+	bool enableCompensateMarkersDistance_ = true;
 	bool updateLastZ_ = true;
 	void _calcPositions(std::vector<float>& points, std::vector<int>& color);
 

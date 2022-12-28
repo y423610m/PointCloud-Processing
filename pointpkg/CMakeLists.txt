@@ -128,6 +128,8 @@ src/realsense_interface.cpp
 src/yolo_detector.cpp
 src/yolo_utils.cpp
 
+src/marker_position_compensater.cpp
+
 
 #src/not_used/client.cpp
 #src/not_used/manager.cpp

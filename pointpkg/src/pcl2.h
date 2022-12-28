@@ -21,7 +21,8 @@
 #define PCL_ID_CvtVecToPCD 15
 #define PCL_ID_CvtPCDToVec 16
 #define PCL_ID_DetectWithYOLO 17
-
+#define PCL_ID_CalibrationHorizon 18
+#define PCL_ID_CalibrationVertical 19
 
 // <31
 
@@ -133,6 +134,7 @@
 #include "development_commands.h"
 #include "coppeliasim_interface.h"
 #include "contact_detector.h"
+#include "array3d_extention.h"
 
 using namespace pcl::tracking;
 using namespace std::chrono_literals;
@@ -223,28 +225,25 @@ private:
 		if (!enable_[PCL_ID_Transform]) return;
 		if (cloud_main->size() == 0) return;
 
-		Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+		Eigen::Affine3f transform;
+
+		transform = Eigen::Affine3f::Identity();
 		transform.translation() << transformation_parameters_[0], transformation_parameters_[1], transformation_parameters_[2];
-		//transform.rotate(Eigen::AngleAxisf(transformation_parameters_[3], Eigen::Vector3f::UnitX()));
-		//transform.rotate(Eigen::AngleAxisf(transformation_parameters_[4], Eigen::Vector3f::UnitY()));
-		//transform.rotate(Eigen::AngleAxisf(transformation_parameters_[5], Eigen::Vector3f::UnitZ()));
+		//if (cloud_sub->size()) cloud_sub->clear();
+		//pcl::transformPointCloud(*cloud_main, *cloud_sub, transform);
+		//cloud_main.swap(cloud_sub);
 
-		//Eigen::Affine3f rotX = Eigen::Affine3f::Identity();
-		transform.rotate(Eigen::AngleAxisf(transformation_parameters_[3], Eigen::Vector3f::UnitX()));
 
-		//Eigen::Affine3f rotY = Eigen::Affine3f::Identity();
-		transform.rotate(Eigen::AngleAxisf(transformation_parameters_[4], Eigen::Vector3f::UnitY()));
-
-		//Eigen::Affine3f rotZ = Eigen::Affine3f::Identity();
+		//transform = Eigen::Affine3f::Identity();
 		transform.rotate(Eigen::AngleAxisf(transformation_parameters_[5], Eigen::Vector3f::UnitZ()));
-
-
+		transform.rotate(Eigen::AngleAxisf(transformation_parameters_[4], Eigen::Vector3f::UnitY()));
+		transform.rotate(Eigen::AngleAxisf(transformation_parameters_[3], Eigen::Vector3f::UnitX()));
 		if (cloud_sub->size()) cloud_sub->clear();
 		pcl::transformPointCloud(*cloud_main, *cloud_sub, transform);
-		//pcl::transformPointCloud(*cloud_tmp, *cloud_main_, rotY);
-		//pcl::transformPointCloud(*cloud_main_, *cloud_tmp, rotZ);
-		//pcl::transformPointCloud(*cloud_tmp, *cloud_main_, transform);
 		cloud_main.swap(cloud_sub);
+
+
+
 	}
 
 
@@ -601,7 +600,12 @@ private:
 
 	//最大の平面除去 9
 	void _remove_plane() {
-		while (1) {
+		if (!enable_[PCL_ID_RemovePlane]) return;
+		if (!initialized_[PCL_ID_RemovePlane]) {
+			initialized_[PCL_ID_RemovePlane] = true;
+		}
+
+		for(int i=0;i<1;i++) {
 			pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
 			pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
 			// Create the segmentation object
@@ -634,11 +638,30 @@ private:
 
 
 	//cloud_main_を描画．要コンストラクタの初期化 10
+	//viewerのwrapper
+	/*
+	         void
+         setBackgroundColor (const double &r, const double &g, const double &b, int viewport = 0);
+	*/
 	pcl::visualization::CloudViewer* cViewer_;
+	bool showCoordinate_ = true;
 	void drawResult(){
 		if (!enable_[PCL_ID_DrawResult]) return;
 		if (!initialized_[PCL_ID_DrawResult]) {
 			cViewer_ = new pcl::visualization::CloudViewer("PCL2::DrawResult");
+			showCoordinate_ = ROSParam::getIntParam("PCL_ShowCoordinate");
+			if (!showCoordinate_) {
+				//cViewer_->removeVisualizationCallable("reference");
+				auto f = [&](pcl::visualization::PCLVisualizer& vis)->void {
+					vis.removeAllCoordinateSystems();
+					array<double, 3> rgb;
+					rgb[0] = ROSParam::getDoubleParam("PCL_BG_R");
+					rgb[1] = ROSParam::getDoubleParam("PCL_BG_G");
+					rgb[2] = ROSParam::getDoubleParam("PCL_BG_B");
+					vis.setBackgroundColor(rgb[0], rgb[1], rgb[2]);
+				};
+				cViewer_->runOnVisualizationThreadOnce(f);
+			}
 			initialized_[PCL_ID_DrawResult] = true;
 		}
 		cViewer_->showCloud(cloud_main_);
@@ -1061,6 +1084,8 @@ private:
 	void _save_parameters(std::string file_path) {
 		if (!params_read_) return;
 
+		PL("PCL saving parameters")
+
 		ofstream ofs(file_path);
 		ofs << std::fixed << std::setprecision(6);
 
@@ -1098,10 +1123,13 @@ private:
 		enable_[PCL_ID_PassThrough] = ROSParam::getIntParam("PCL_enable_PassThrough");
 		enable_[PCL_ID_ParticleFilter] = ROSParam::getIntParam("PCL_enable_ParticleFilter");
 		enable_[PCL_ID_DetectWithSim] = ROSParam::getIntParam("PCL_enable_DetectWithSim");
+		enable_[PCL_ID_RemovePlane] = ROSParam::getIntParam("PCL_enable_RemovePlane");
 		enable_[PCL_ID_Recognite] = ROSParam::getIntParam("PCL_enable_Recognite");
 		enable_[PCL_ID_DrawResult] = ROSParam::getIntParam("PCL_enable_DrawResult");
 		enable_[PCL_ID_DetectWithYOLO] = ROSParam::getIntParam("PCL_enable_DetectWithYOLO");
-
+		enable_[PCL_ID_CalibrationHorizon] = ROSParam::getIntParam("PCL_enable_CalibrationHorizon");
+		enable_[PCL_ID_CalibrationVertical] = ROSParam::getIntParam("PCL_enable_CalibrationVertical");
+		
 		//EL(enable_)
 	}
 
@@ -1111,9 +1139,7 @@ private:
 	//YOLO用に色が範囲外だったらcloud_yolo_に追加
 	void _convert_array_to_pcd(int& number_of_points, std::vector<float>& points, std::vector<int>& color) {
 		cloud_main_->clear();
-		for (int i = 0; i < 2; i++) {
-			cloud_yolo_[i]->clear();
-		}
+		for (int i = 0; i < 2; i++)if (cloud_yolo_[i]->size() != 0) cloud_yolo_[i]->clear();
 		if (points.size() == 0) return;
 
 		int sz = int(points.size()) / 3;
@@ -1121,10 +1147,13 @@ private:
 		//cloud_main_->resize(sz);
 
 		const int mask = 255;
+		int cnt = 0;
 
 		for (int i = 0; i < sz; i++) {
 			//0<=r<=255ならツール無関係の点
 			if (color[3 * i]<256) {
+				cnt++;
+				if (cnt % 3 == 0) continue;
 				cloud_main_->emplace_back(PointTypeT());
 				auto& p = cloud_main_->back();
 				p.x = points[3 * i + 0];
@@ -1186,6 +1215,7 @@ private:
 	}
 
 
+
 	//RGBデータからYOLOでツール位置を推定したうえで接触判定をする 17
 	std::array<CloudPtr, 2> cloud_yolo_;//鉗子，剪刀生データ格納用(マーカーx2,先端位置)
 	CloudPtr cloud_yolo_sub_;//transform用
@@ -1212,10 +1242,44 @@ private:
 			}
 			//ES("escape")
 		}
+		array<queue<array<double, 3>>,3> que;
+		int len = 3;
+		void update2(CloudPtr& cloud) {
+			if (!found_) {
+				for (int i = 0; i < 3; i++) {
+					while (!que[i].empty()) que[i].pop();
+					for (int j = 0; j < 3; j++) positions_[i][j] = 0.0;
+				}
+			}
+			
+			for (int i = 0; i < 3; i++) {
+				array<double, 3> arr;
+				arr[0] = (*cloud)[i].x;
+				arr[1] = (*cloud)[i].y;
+				arr[2] = (*cloud)[i].z;
+				que[i].push(arr);
+				positions_[i] = positions_[i] + arr;
+				while (que[i].size() > len) {
+					positions_[i] = positions_[i] - que[i].front();
+					que[i].pop();
+				}
+				(*cloud)[i].x = positions_[i][0] / que[i].size();
+				(*cloud)[i].y = positions_[i][1] / que[i].size();
+				(*cloud)[i].z = positions_[i][2] / que[i].size();
+			}
+			
+		}
 	};
 	std::array<LastToolPose, 2> lastToolPoses_;
-
-
+	bool calibrationYOLO_ = false;
+	int calibrationStep_ = 0;
+	int calibrationLoopCnt_ = 0;
+	bool showTipPosition_[2];
+	bool showMarkersMeanPosition_[2];
+	bool calibrateO_ = false;
+	bool calibrateRotZ_ = false;
+	int cnt = 0;
+	bool show200Frames_ = false;
 	void _detect_contact_with_YOLO() {
 		//PL("a")
 		if (!enable_[PCL_ID_DetectWithYOLO]) return;
@@ -1237,12 +1301,18 @@ private:
 					, arr_rgb
 					));
 			}
-
+			calibrateO_ = ROSParam::getIntParam("PCL_CalibrateO");
+			calibrateRotZ_ = ROSParam::getIntParam("PCL_CalibrateRotZ");
+			show200Frames_ = ROSParam::getIntParam("PCL_Show200Frames");
+			if (calibrateO_ & calibrateRotZ_) calibrateO_ = false;
+			for(int i=0;i<2;i++) showMarkersMeanPosition_[i] = ROSParam::getIntParam("PCL_ShowMarkersMeanPosition"+to_string(i));
+			calibrationYOLO_ = ROSParam::getIntParam("PCL_CalibrationYOLO");
+			showTipPosition_[0] = ROSParam::getIntParam("PCL_ShowTipPosition0");
+			showTipPosition_[1] = ROSParam::getIntParam("PCL_ShowTipPosition1");
 			initialized_[PCL_ID_DetectWithYOLO] = true;
 		}
 
 		for (int i = 0; i < 2; i++) {
-
 			if (cloud_yolo_[i]->size() != 3) {
 				lastToolPoses_[i].found_ = false;
 				continue;
@@ -1252,10 +1322,10 @@ private:
 			sort(cloud_yolo_[i]->begin(), cloud_yolo_[i]->end(), [](PointTypeT& a, PointTypeT& b) {
 				return a.r > b.r;
 				});
-			
-			lastToolPoses_[i].update(cloud_yolo_[i]);
-
 			_transform(cloud_yolo_[i], cloud_yolo_sub_);
+
+			lastToolPoses_[i].update2(cloud_yolo_[i]);
+
 
 			/*
 			RealSenseInterfaceでツール上のマーカー（Yellow, Green）を検出．
@@ -1283,14 +1353,166 @@ private:
 			contact_detector_yolo_[i]->transform_init(transform);
 			contact_detector_yolo_[i]->remove_and_detect(cloud_main_);
 
+			if (showTipPosition_[i]) {
+				for (int j = 0; j < 3; j++) {
+					//PS(i) PS(j) PS((*cloud_yolo_[i])[j].x) PS((*cloud_yolo_[i])[j].y) PS((*cloud_yolo_[i])[j].z) PL(pow(pow((*cloud_yolo_[i])[j].x * 1000, 2.) + pow((*cloud_yolo_[i])[j].y * 1000, 2.) + pow((*cloud_yolo_[i])[j].z * 1000, 2.),1.0/2));
+					PS(j) PS((*cloud_yolo_[i])[j].x * 1000.) PS((*cloud_yolo_[i])[j].y * 1000.) PL((*cloud_yolo_[i])[j].z * 1000.)
+				}
+				//ES(i) ES((*cloud_yolo_[i])[0].x) ES((*cloud_yolo_[i])[0].y) EL((*cloud_yolo_[i])[0].z)
+			}
 
+			if (show200Frames_) {
+				if (20 <= cnt && cnt < 220) {
+					for (int j = 0; j < 3; j++) {
+						PS(j) PS((*cloud_yolo_[i])[j].x*1000.) PS((*cloud_yolo_[i])[j].y * 1000.) PL((*cloud_yolo_[i])[j].z * 1000.)
+					}
+				}
+				cnt++;
+			}
 
 			//必要に応じて，マーカーなどをMainの点群に追加しておく．
-			if (true) for (const auto& p : *cloud_yolo_[i]) {
+			if (showMarkersMeanPosition_) for (const auto& p : *cloud_yolo_[i]) {
 				cloud_main_->emplace_back(p);
 				//EL(int(cloud_main_->back().a))
 			}
+
+			if (calibrateO_) {
+				transformation_parameters_[0] += -(*cloud_yolo_[i])[0].x * 0.1;
+				transformation_parameters_[1] += -(*cloud_yolo_[i])[0].y * 0.1;
+				transformation_parameters_[2] += -(*cloud_yolo_[i])[0].z * 0.1;
+			}
+
+			if (calibrateRotZ_) {
+				//double sig = (*cloud_yolo_[i])[0].x / abs((*cloud_yolo_[i])[0].x) * (*cloud_yolo_[i])[0].y / abs((*cloud_yolo_[i])[0].y);
+				transformation_parameters_[5] += -atan2((*cloud_yolo_[i])[0].y, (*cloud_yolo_[i])[0].x) * 0.1;
+			}
+
+			
+			//no more used calibration function
+			if (false && calibrationYOLO_ && i == 0) {
+				const auto& tip = (*cloud_yolo_[i])[0];
+				ES(tip.x) ES(tip.y) EL(tip.z);
+				if (calibrationStep_ == 0) {
+					//PL("0:回転をすべて0にする");
+					for (int i = 3; i < 6; i++) transformation_parameters_[i] = 0.0;
+					calibrationLoopCnt_ = 0;
+					calibrationStep_++;
+				}
+				else if (calibrationStep_ == 1) {
+					//PL("1:ツール先端が原点に来るように移動して，HOMEを押す")
+					transformation_parameters_[0] -= tip.x;
+					transformation_parameters_[1] -= tip.y;
+					transformation_parameters_[2] -= tip.z;
+					calibrationLoopCnt_ = 0;
+					calibrationStep_++;
+				}
+				else if (calibrationStep_ == 2) {
+					PL("2:ツールをx方向に平行移動させた後，y=0になるようにz軸回転．HOMEを押す")
+				}
+				else if (calibrationStep_ == 3) {
+					PL("3:ツールは動かさず，z=0になるようにy軸回転．HOMEを押す")
+				}
+				else if (calibrationStep_ == 4) {
+					PL("4:ツールをy方向に平行移動させた後，z=0になるようにx軸回転．HOMEを押す")
+				}
+				else {
+					calibrationYOLO_ = false;
+					continue;
+				}
+
+				if ((bool)(GetKeyState(VK_HOME) & 0x8000) && calibrationLoopCnt_ > 30) {
+					calibrationLoopCnt_ = 0;
+					calibrationStep_++;
+					EL(calibrationStep_)
+				}
+				calibrationLoopCnt_++;
+			}
 		}
+	}
+
+
+
+	//水平面キャリブレーション 18
+	//最大平面とxy平面を一致させる
+	double dist_horizon_ = 0.1;
+	void _horizontal_calibration() {
+		if (!enable_[PCL_ID_CalibrationHorizon]) return;
+		if (!initialized_[PCL_ID_CalibrationHorizon]) {
+			initialized_[PCL_ID_CalibrationHorizon] = true;
+		}
+
+		for (int i = 0; i < 1; i++) {
+			pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+			pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+			// Create the segmentation object
+			pcl::SACSegmentation<PointTypeT> seg;
+			// Optional
+			seg.setOptimizeCoefficients(true);
+			// Mandatory
+			seg.setModelType(pcl::SACMODEL_PLANE);
+			seg.setMethodType(pcl::SAC_RANSAC);
+			seg.setDistanceThreshold(0.002);
+
+			seg.setInputCloud(cloud_main_);
+			seg.segment(*inliers, *coefficients);
+
+			//ax+by+cz+d = 0
+			PS(coefficients->values[0]);
+			PS(coefficients->values[1]);
+			PS(coefficients->values[2]);
+			PL(coefficients->values[3]);
+
+			transformation_parameters_[2] += coefficients->values[3] * 0.1;
+			transformation_parameters_[3] += coefficients->values[1] * 0.1;
+			transformation_parameters_[4] += coefficients->values[0] * 0.1;
+		}
+		dist_horizon_ *= 0.99;
+		chmax(dist_horizon_, 0.001);
+	}
+
+
+
+	//水平面キャリブレーション 19
+	//最大平面とyz平面を一致させる
+	//horizonのキャリブレーション後に使う
+	double dist_vertical_ = 0.1;
+	void _vertical_calibration() {
+		if (!enable_[PCL_ID_CalibrationVertical]) return;
+		if (!initialized_[PCL_ID_CalibrationVertical]) {
+			initialized_[PCL_ID_CalibrationVertical] = true;
+		}
+
+		for (int i = 0; i < 1; i++) {
+			pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+			pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+			// Create the segmentation object
+			pcl::SACSegmentation<PointTypeT> seg;
+			// Optional
+			seg.setOptimizeCoefficients(true);
+			// Mandatory
+			seg.setModelType(pcl::SACMODEL_PLANE);
+			seg.setMethodType(pcl::SAC_RANSAC);
+			seg.setDistanceThreshold(0.002);
+
+			seg.setInputCloud(cloud_main_);
+			seg.segment(*inliers, *coefficients);
+
+			//ax+by+cz+d = 0
+			PS(coefficients->values[0]);
+			PS(coefficients->values[1]);
+			PS(coefficients->values[2]);
+			PL(coefficients->values[3]);
+			//xz平面が原点通るように
+			transformation_parameters_[1] -= coefficients->values[3] * 0.1;
+			if (coefficients->values[1] != 0.0) {
+				if (coefficients->values[0] / coefficients->values[1] > 0) transformation_parameters_[5] += dist_vertical_;
+				else transformation_parameters_[5] -= dist_vertical_;
+			}
+			//transformation_parameters_[3] -= coefficients->values[2] * 0.1;
+			//transformation_parameters_[5] -= coefficients->values[0] * 0.1;
+		}
+		dist_vertical_ *= 0.8;
+		chmax(dist_vertical_, 0.001);
 	}
 
 
@@ -1298,7 +1520,7 @@ private:
 	float tx = -0.08;
 	float ty = -0.13;
 	float tz = 0.15;
-	float ZZ = -2.0;;
+	float ZZ = -2.0;
 	void _edit() {
 		//0.0405
 		//0.0825
@@ -1384,6 +1606,7 @@ PCL2<PointTypeT>::PCL2() :
 
 template<typename PointTypeT>
 PCL2<PointTypeT>::~PCL2() {
+	PL("~PCL2");
 	this->_save_parameters(ROSParam::getStringParam("PCL_param_txt"));
 }
 
@@ -1416,9 +1639,10 @@ void PCL2<PointTypeT>::update(int& number_of_points, std::vector<float>& points,
 	//範囲外除去
 	PCL2<PointTypeT>::_filterPassThrough();
 
-
-
-	//PCL2<PointTypeT>::_remove_plane();
+	//最大平面がxy平面と重なるように座標変換
+	PCL2<PointTypeT>::_horizontal_calibration();
+	PCL2<PointTypeT>::_vertical_calibration();
+	PCL2<PointTypeT>::_remove_plane();
 	//PCL2<PointTypeT>::_compress();
 	//PCL2<PointTypeT>::_detect_change(color);
 	//PCL2<PointTypeT>::_edit();

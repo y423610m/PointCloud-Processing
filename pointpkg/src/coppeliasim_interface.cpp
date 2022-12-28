@@ -36,9 +36,11 @@ CoppeliaSimInterface::CoppeliaSimInterface() {
 }
 
 CoppeliaSimInterface::~CoppeliaSimInterface() {
+	PS("~CoppeliaSimInterface");
 	simxFinish(ClientID);
 	CoppeliaSimInterface::_save_parameters(ROSParam::getStringParam("SIM_param_txt"));
 	labview_interface_->~LabViewInterface();
+	PL("~CoppeliaSimInterface");
 }
 
 void CoppeliaSimInterface::_load_parameters(std::string file_path) {

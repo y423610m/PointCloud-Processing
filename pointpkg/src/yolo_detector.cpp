@@ -63,6 +63,15 @@ originalImageShape_(originalImageShape)
     classNames_ = { "Tool", "Yellow", "Green", "Blue", "Pink" };
 }
 
+YOLODetector::~YOLODetector() {
+    PS("~YOLODetector");
+    //this->session.EndProfiling(nullptr);
+
+    //↓参考に，メモリー開放必要？
+    //https://github.com/microsoft/onnxruntime-inference-examples/blob/main/c_cxx/fns_candy_style_transfer/fns_candy_style_transfer.c
+    PL("~YOLODetector");
+}
+
 //for old yolo? not for yolov7
 void YOLODetector::getBestClassInfo(std::vector<float>::iterator it, const int& numClasses,
     float& bestConf, int& bestClassId)
@@ -181,7 +190,7 @@ std::vector<Detection> YOLODetector::postprocessing(std::vector<Ort::Value>& out
     return detections_;
 }
 
-std::vector<Detection> YOLODetector::detect(cv::Mat& image){
+std::vector<Detection> YOLODetector::detect(cv::Mat& image, bool showInference){
     if (!initialized_) {
         inputTensorShape_ = { 1, 3, inputImageShape_.height, inputImageShape_.width };
         inputTensorSize_ = utils::vectorProduct(inputTensorShape_);
@@ -212,7 +221,7 @@ std::vector<Detection> YOLODetector::detect(cv::Mat& image){
     if (result_.size()) result_.clear();
     result_ = this->postprocessing(outputTensors_);
 
-    //utils::visualizeDetection(image, result, classNames_);
+    if(showInference) utils::visualizeDetection(image, result_, classNames_);
 
     return result_;
 }

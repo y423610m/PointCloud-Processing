@@ -81,6 +81,7 @@ void LabViewInterface::update() {
 
 LabViewInterface::~LabViewInterface() {
 	if (!constructed) return;
+	cerr << "~LabView" << endl;
 	closesocket(sock);
 	WSACleanup();
 }

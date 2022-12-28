@@ -58,6 +58,15 @@ void Manager::update() {
 
 }
 
+Manager::~Manager() {
+	PS("~Manager");
+	ros_interface_->~ROSInterface();
+	pcl_->~PCL2();
+	realsense_->~RealSenseInterface();
+	coppeliasim_interface_->~CoppeliaSimInterface();
+	PL("~Manager");
+}
+
 double* Manager::get_transformation_parameters(int n) {
 	//return ros_interface_->get_transformation_parameters(n);
 	return pcl_->get_transformation_parameters(n);

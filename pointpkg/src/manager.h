@@ -54,6 +54,8 @@ public:
 		#endif //_WIN32
 			;
 	}
+	~Manager();
+
 
 	//ROS
 	int get_original_points_size();

@@ -39,17 +39,26 @@ RealSenseInterface::RealSenseInterface(){
     image_ = cv::Mat(RSImageHeight_, RSImageWidth_, CV_8UC3);
     classMeanPos_.resize(classNum);
 
-    ratio_ty_over_yg = ROSParam::getDoubleParam("RS_TYoverYG");
     ratio_tm1_over_m1m2_.resize(2);
     ratio_tm1_over_m1m2_[0] = ROSParam::getDoubleParam("RS_TYoverYG");
     ratio_tm1_over_m1m2_[1] = ROSParam::getDoubleParam("RS_TBoverBP");
-    length_tc = ROSParam::getDoubleParam("RS_length_TC");
+    //length_tm1 = ROSParam::getDoubleParam("RS_Length_TM1");
+    length_tc = ROSParam::getDoubleParam("RS_Length_TC");
     ZratioLimit_ = ROSParam::getDoubleParam("RS_ZratioLimit");
     updateLastZ_ = ROSParam::getIntParam("RS_updateLastZ");
 
-    //if true, show Time log on terminal
+    //pose compensater
+    enableMarkerPoseCompensater_ = ROSParam::getIntParam("RS_EnableMarkerPoseCompensater");
+    if (enableMarkerPoseCompensater_) {
+        marker_position_compensater_.reset(new MarkerPositionCompensater(ROSParam::getStringParam("MPC_ModelPath")));
+        
+    }
+    enableCompensateMarkersDistance_ = ROSParam::getIntParam("RS_EnableCompensateMarkersDistance");
+
+
     showTime_ = ROSParam::getIntParam("RS_ShowTime");
     showImage_ = ROSParam::getIntParam("RS_ShowImage");
+    showInference_ = ROSParam::getIntParam("RS_ShowInference");
 
     //幅，高さ，奥行
     threshold_ = { 0.5, 0.5, 0.7 };
@@ -91,7 +100,20 @@ RealSenseInterface::RealSenseInterface(){
 }
 
 RealSenseInterface::~RealSenseInterface() {
-    pipe_.stop();
+    PS("~RS");
+    try {
+        pipe_.stop();
+        yolov7_->~YOLODetector();
+    }
+    catch (const Ort::Exception& e) {
+        EL(e.what())
+    }
+
+
+    
+
+    
+    PL("~RS");
 }
 
 void RealSenseInterface::_setFilters() {
@@ -126,6 +148,29 @@ void RealSenseInterface::_process() {
         EL("No Depth Frame");
         return;
     }
+
+    //デプスイメージ表示&保存
+    auto dep = frames.get_depth_frame();
+    cv::Mat DImage(RSDepthHeight_, RSDepthWidth_, CV_8UC3);
+    double Min = 1e9;
+    for (int h = 0; h < RSDepthHeight_; h++) {
+        for (int w = 0; w < RSDepthWidth_; w++) {
+            auto it = &(DImage.at<cv::Vec3b>(h,w));
+
+            double d = dep.get_distance(w, h);
+            if (d == 0.0) d = 10;
+            int val = (d-0.1) / 0.6*255;
+            chmin(val, 255);
+            chmax(val, 0);
+            (*it)[0] = val;//b
+            //(*it)[0] = 126+abs(128-val);//g
+            (*it)[2] = 255-val;//r
+            //it++;
+        }
+    }
+    EL(Min)
+    cv::imshow("D", DImage);
+    cv::imwrite("C:/Users/y4236/Desktop/Depth.png", DImage);
 
     color_que_.enqueue(frames.get_color_frame());
 
@@ -204,6 +249,7 @@ void RealSenseInterface::_findMarkers(cv::Mat& BGRImage, std::vector<Detection>&
 
     //一旦HSVに変換して，Yellow, Greenの抽出簡単に
     cvtColor(BGRImage, HSVImage_, cv::COLOR_BGR2HSV);
+    //cvtColor(BGRImage, HSVImage_, cv::COLOR_BGR2HLS);
 
     //classId順にソート
     sort(result.begin(), result.end(), [](const Detection& a, const Detection& b) {return a.classId < b.classId;});
@@ -219,9 +265,15 @@ void RealSenseInterface::_findMarkers(cv::Mat& BGRImage, std::vector<Detection>&
     近接で背景黒いとき，93,240,140
     背景と明るさ調整でS,Vはかなり変化するので，calcPositions()内のZRatioLimitで奥を除去したほうが汎用的
     */
-    int dH = 15;
-    int oldH[] = { 0, 30, 85, 100, 0};
-    int newH[] = { 0, 0, 0, 0, 0 };
+    int dH = 10;
+    //* y g b p
+    int HL[] = { 0, 15, 83, 90, 160};
+    int HR[] = { 0, 50, 100, 108, 180+10 };
+    int SL[] = { 0, 5, 35, 50, 50};
+    int SR[] = { 0, 200, 180, 260, 220 };
+    int VL[] = { 0, 60, 40, 60, 60 };
+    int VR[] = { 0, 260, 240, 260, 260 };
+    //int newH[] = { 90, 0, 0, 0, 120 };
     //int dS = 50;
     //int lowS[]  = { 0, 0, 0 };
     //int highS[] = { 0, 300, 300 };
@@ -241,10 +293,14 @@ void RealSenseInterface::_findMarkers(cv::Mat& BGRImage, std::vector<Detection>&
     //EL(int(maxH));
     //EL(int(minH));
 
+    vector<bool> found(classNum, false);
+
     //classID==0(Tool)ならclassIdImage_更新
     //そうでなければ，Toolに内包されているか確認して，されていれば採用
     for (auto& rect : result) {
         int classId = rect.classId;
+        if (classId != 0 && found[classId]) continue;
+        found[classId] = true;
         int h0 = rect.box.y;
         int w0 = rect.box.x;
         chmax(h0, 0);
@@ -255,23 +311,37 @@ void RealSenseInterface::_findMarkers(cv::Mat& BGRImage, std::vector<Detection>&
         int w1 = w0 + width;
         chmin(h1, RSImageHeight_ - 1);
         chmin(w1, RSImageWidth_ -1);
-        //if (classId == 2) {
-        //    auto itHSV = &(HSVImage_.at<cv::Vec3b>(h0, w0));
-        //    ES("a") ES(classId) ES(int((*itHSV)[0])) ES(int((*itHSV)[1])) EL(int((*itHSV)[2]))
-        //    itHSV = &(HSVImage_.at<cv::Vec3b>((h0+h1)/2, (w0+w1)/2));
-        //    ES(classId) ES(int((*itHSV)[0])) ES(int((*itHSV)[1])) EL(int((*itHSV)[2]))
-        //}
+
+        /*
+        赤色はHが0付近と180付近に分布するので-180したものも使って判別
+        HSVImageは8bit符号なし整数なので，オーバーフロー注意
+        OK:  -180+(*itHSV)[0]
+        △:  (*itHSV)[0]-180
+        */
+
         for (int h = h0; h <= h1; h++) {
             auto itHSV = &(HSVImage_.at<cv::Vec3b>(h, w0));
             for (int w = w0; w <= w1; w++) {
                 if (classId == 0) classIdImage_[h][w] = 0;
                 else if (classIdImage_[h][w] == 0) {
                     //auto& HSV = HSVImage_.at<cv::Vec3b>(h, w);
-                    if (-dH + oldH[classId] <= (*itHSV)[0] && (*itHSV)[0] <= dH + oldH[classId]
+
+                    if (
+
+                        (HL[classId]<= (*itHSV)[0]&& (*itHSV)[0]<= HR[classId])||(HL[classId] <= 180+(*itHSV)[0] && 180+(*itHSV)[0] <= HR[classId])
+                      && SL[classId] <= (*itHSV)[1] && (*itHSV)[1] <= SR[classId]
+                      && VL[classId] <= (*itHSV)[2] && (*itHSV)[2] <= VR[classId]
+                        //&& (*itHSV)[1]>20
+                        //&& (*itHSV)[2]>50
                         //&& lowS[classId] <= (*itHSV)[1] && (*itHSV)[1] <= highS[classId]
                         //&& lowV[classId] <= (*itHSV)[2] && (*itHSV)[2] <= highV[classId]
+                        //&& 50<(*itHSV)[1] && (*itHSV)[1]<200
                         ) {
-                        (*itHSV)[0] = newH[classId];
+
+
+                        (*itHSV)[0] = (90+(*itHSV)[0])%180;
+                        //(*itHSV)[1] = 255;
+                        //(*itHSV)[0] = 255-(*itHSV)[0];
                         classIdImage_[h][w] = classId;
                     }
 
@@ -286,27 +356,30 @@ void RealSenseInterface::_findMarkers(cv::Mat& BGRImage, std::vector<Detection>&
 
     //HSV->RGBImage. 現状必要ないのでコメントアウト
     cvtColor(HSVImage_, BGRImage, cv::COLOR_HSV2BGR);
+    //cvtColor(HSVImage_, BGRImage, cv::COLOR_HLS2BGR);
 }
 
 void RealSenseInterface::_calcPositions(std::vector<float>& points, std::vector<int>& color) {
-    if (found_.size() != classNum) found_.resize(classNum, false);
+    if (found_.size() != classNum) {
+        found_.resize(classNum, false);
+        if (enableMarkerPoseCompensater_) {
+            marker_position_compensater_.reset(new MarkerPositionCompensater(ROSParam::getStringParam("MPC_ModelPath")));
+            length_tc = 0.0;
+        }
+    }
 
-    //class3DPositions_を元に，Yellow, Greenを追加する
-    /*
-    
-    */
-
+    //マーカー平均点を算出
     for (int classId = 1; classId < classNum; classId++) {
         if (class3DPositions_[classId].size() == 0) continue;
         auto& vec = class3DPositions_[classId];
         //カメラからの距離(z)が近い順にソート
-        std::sort(vec.begin(), vec.end(), [](const std::array<double, 3>& a, const std::array<double, 3>& b) {return a[2] < b[2]; });
+        std::sort(vec.begin(), vec.end(), [](const std::array<float, 3>& a, const std::array<float, 3>& b) {return a[2] < b[2]; });
 
         int cnt = 0;
         double lastZ = vec[0][2];
         classMeanPos_[classId] = { 0., 0., 0. };
         //順番に足し合わせる
-        for (const std::array<double, 3>&p : class3DPositions_[classId]) {
+        for (const std::array<float, 3>&p : class3DPositions_[classId]) {
             if (p[2] > lastZ * ZratioLimit_) {
                 //EL("RS Z ratio break")
                 break;
@@ -315,34 +388,107 @@ void RealSenseInterface::_calcPositions(std::vector<float>& points, std::vector<
             //カメラ最近点からの比率にするか，一つ手前の点からの比率にするか
             if (updateLastZ_) lastZ = p[2];
             cnt++;
-            for (int i = 0; i < 3; i++) classMeanPos_[classId][i] += p[i];
+            for (int j = 0; j < 3; j++) classMeanPos_[classId][j] += p[j];
         }
 
         //Yellow, Greenの各平均をとって追加
         if (cnt != 0) {
             found_[classId] = true;
-            for (int i = 0; i < 3; i++) classMeanPos_[classId][i] /= cnt;
-            //pcl2内でソートするためにrだけclassId引いておく．
-            int rgb[] = { 255 - classId, 0, 0 };
-            //classId==1,2の時，255+256(=1<<8), classId==3,4のとき，255+512(=1<<9)
-            for (int i = 0; i < 3; i++) color.push_back(rgb[i] + (1<<(8+(classId/3))));
-            for (int i = 0; i < 3; i++) points.push_back(classMeanPos_[classId][i]);
+            for (int j = 0; j < 3; j++) classMeanPos_[classId][j] /= cnt;
+        
+
+            //for (double r = 0.0; r < 0.0005; r += 0.0001) {
+            //    for (double a = 0; a < M_PI*2; a += 0.01) {
+            //        for (double b = 0; b < M_PI * 2; b += 0.01) {
+            //            for (int j = 0; j < 3; j++) color.push_back(rgb[j]);
+            //            points.push_back(classMeanPos_[classId][0] + r * cos(a) * sin(b));
+            //            points.push_back(classMeanPos_[classId][1] + r * sin(a) * sin(b));
+            //            points.push_back(classMeanPos_[classId][2] + r * cos(b));
+            //        }
+            //    }
+            //}
+            //for (int i = 0; i < 3; i++) cerr << classMeanPos_[classId][i] << ",";
         }
+        //ES(classId) PS(classMeanPos_[classId][0]) PS(classMeanPos_[classId][1]) PL(classMeanPos_[classId][2])
+    }
+
+    //色補正
+    if (false && true) {
+
+        for (int j = 0; j < 3; j++) classMeanPos_[1][j] *= 1.0005;
+        for (int j = 0; j < 3; j++) classMeanPos_[2][j] *= 0.9995;
+
+        for (int j = 0; j < 2; j++) classMeanPos_[1][j] = classMeanPos_[1][j] * (1.0 - classMeanPos_[1][j] * 0.5);
+        for (int j = 0; j < 2; j++) classMeanPos_[2][j] = classMeanPos_[2][j] * (1.0 - classMeanPos_[2][j]);
+
     }
 
 
     //ツール先端推定
     for (int i = 0; i < 2; i++) {
-        if (found_[2*i+1] && found_[2*i+2]) {
-            if (norm(classMeanPos_[2*i+1] - classMeanPos_[2*i+2]) > 0.1) continue;
+        int m1 = 2 * i + 1;
+        int m2 = 2 * i + 2;
+        if (found_[m1] && found_[m2]) {
 
+            if (norm(classMeanPos_[m1] - classMeanPos_[m2]) > 0.1) continue;
+
+
+            //カメラから見てツールがどの姿勢を向いているか
+            //ツールが奥（手前）を向いてるなら，よりその方向に向くように
+            if (false && true) {
+                array<float, 3> axisZ = { 0.0,0.0,1.0 };
+                auto innerProduct = inner_prod(axisZ, classMeanPos_[m1] - classMeanPos_[m2]);
+                classMeanPos_[m1] = classMeanPos_[m1] * (1.0 + 0.25 * innerProduct);
+                classMeanPos_[m2] = classMeanPos_[m2] * (1.0 + 0.125 * innerProduct);
+                //EL(innerProduct);
+                float si = sqrt(1.0 - innerProduct * innerProduct);
+                classMeanPos_[m1] = classMeanPos_[m1] * (1.0 + si * 0.02);
+                classMeanPos_[m2] = classMeanPos_[m2] * (1.0 + si * 0.01);
+            }
+
+            //カメラ-(m1,m2の中心)周りに，m1,m2を回転させる
+            if (false) {
+                //auto mid = (classMeanPos_[m1] + classMeanPos_[m2]) / 2.0;
+
+                //array<float, 3> axisX1 = array<float, 3>(1.0, 0.0, 0.0) * norm(classMeanPos_[m1] - mid);
+                //if ((classMeanPos_[m1] - mid)[0] < 0) axisX1 = -1.0 * axisX1;
+
+                //array<float, 3> axisX = { 1.0,0.0,0.0 };
+                //auto innerProduct = inner_prod(axisX, classMeanPos_[m1] - classMeanPos_[m2]);
+                //axisX = axisX * norm(classMeanPos_[m1] - classMeanPos_[m2]);
+                //if (innerProduct < 0) axisX = axisX * -1.0;
+                //axisX = classMeanPos_[m2] +
+                //classMeanPos_[m1] = classMeanPos_[m1] * 0.995 + axisX * 0.005;
+                //classMeanPos_[m2] = classMeanPos_[m2] * 0.9975 + axisX * 0.0025;
+            }
+
+            
+            //ディープラーニングで補正しようとしたけど微妙だったやつ（というか悪化した）.データ不足．
+            if (false && enableMarkerPoseCompensater_) {
+                marker_position_compensater_->predict(classMeanPos_[2 * i + 1], classMeanPos_[2 * i + 2]);
+            }
+            
+            //M1,M2間の距離が実際の距離に近くなるように若干の補正をする
+            if (false&&enableCompensateMarkersDistance_) {
+                //auto check = [&](auto x) {
+                //    return true;
+                //};
+                //double c = binSearch(1.8, 2.2, check);
+                double n = norm(classMeanPos_[m1] - classMeanPos_[m2]);
+                double c = 1.0 - (n - 0.025) * 1.0;
+                classMeanPos_[m1] = classMeanPos_[m1] * c;
+                classMeanPos_[m2] = classMeanPos_[m2] * c;
+                //ES(n) EL(c)
+            }
+
+            //cerr << endl;
             //////////////////////////////////先端位置補正！！！！！！
             //trをv周りに90deg回転させたらtcと同じ向きになるはず
             //https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
             /*
             ベクトルvをベクトルk周りにthだけ回転させるとき，
             v' = vcos(th)+(kxv)sin(th)+k(k*v)(1-cos(th))
-            th=90degより，
+            th = 90degより，
             v' = v + kxv;
 
             c:ツール先端中心
@@ -353,21 +499,24 @@ void RealSenseInterface::_calcPositions(std::vector<float>& points, std::vector<
             _g:グローバル座標（カメラ座標)
             _l:ローカル座標（tが原点）
             */
-            std::array<double, 3> t_g = classMeanPos_[2*i+1] + (classMeanPos_[2*i+1] - classMeanPos_[2*i+2]) * ratio_tm1_over_m1m2_[i];
+            //std::array<float, 3> t_g = classMeanPos_[m1] + (classMeanPos_[m1] - classMeanPos_[m2]) * ratio_tm1_over_m1m2_[i];
+            std::array<float, 3> t_g = classMeanPos_[m1] + (classMeanPos_[m1] - classMeanPos_[m2]) / norm((classMeanPos_[m1] - classMeanPos_[m2])) * ratio_tm1_over_m1m2_[i];
 
-            std::array<double, 3> m1_g = classMeanPos_[2*i+1];
-            std::array<double, 3> m2_g = classMeanPos_[2*i+2];
-            std::array<double, 3> m1_l = m1_g - t_g;
-            std::array<double, 3> k = outer_prod(m1_l, t_g);//tr,tcに垂直なベクトル.回転中心軸．
+
+
+            std::array<float, 3> m1_g = classMeanPos_[m1];
+            std::array<float, 3> m2_g = classMeanPos_[m2];
+            std::array<float, 3> m1_l = m1_g - t_g;
+            std::array<float, 3> k = outer_prod(m1_l, t_g);//tr,tcに垂直なベクトル.回転中心軸．
             //EL(k)
             k = unit(k);
             //EL(k)
 
-            std::array<double, 3> oldV = unit(m1_l);
+            std::array<float, 3> oldV = unit(m1_l);
             //EL(oldV)
 
-            double th = 90.; th *= M_PI / 180.;
-            std::array<double, 3> newV = oldV * cos(th) + (outer_prod(k, oldV)) * sin(th) + k * (inner_prod(k, oldV)) * (1. - cos(th));
+            float th = 90.; th *= M_PI / 180.;
+            std::array<float, 3> newV = oldV * cos(th) + (outer_prod(k, oldV)) * sin(th) + k * (inner_prod(k, oldV)) * (1.f - cos(th));
             //EL(newV)
 
             if (norm(newV) != 0) {
@@ -377,9 +526,7 @@ void RealSenseInterface::_calcPositions(std::vector<float>& points, std::vector<
             }
             else newV = newV + t_g;
 
-            //EL(y_l);
-            //EL(t)
-            //EL(newV);
+
 
             //newV
             int rgb[] = { 255, 255, 0 };
@@ -387,7 +534,16 @@ void RealSenseInterface::_calcPositions(std::vector<float>& points, std::vector<
             for (int j = 0; j < 3; j++) color.push_back(rgb[j] + (1<<(8+i)));
             for (int j = 0; j < 3; j++) points.push_back(newV[j]);
 
+
         }
+    }
+
+    for (int classId = 1; classId < classNum; classId++) if (found_[classId]) {
+        //pcl2内でソートするためにrだけclassId引いておく．
+        int rgb[] = { 255 - classId, 255 * (classId / 3), 0 };
+        //classId==1,2の時，255+256(=1<<8), classId==3,4のとき，255+512(=1<<9)
+        for (int j = 0; j < 3; j++) color.push_back(rgb[j] + (1 << (8 + (classId / 3))));
+        for (int j = 0; j < 3; j++) points.push_back(classMeanPos_[classId][j]);
     }
 }
 
@@ -439,10 +595,10 @@ void RealSenseInterface::getPointCloud(std::vector<float>& points, std::vector<i
 
     _getMatImage(image_, color_frame, texture_data);
     if(showImage_) cv::imshow("before", image_);
+    cv::imwrite("C:/Users/y4236/Desktop/Before.png", image_);
     if (showTime_) { PS("RS 246") PL(clock() - start) }
 
-
-    detection_result_ = yolov7_->detect(image_);
+    detection_result_ = yolov7_->detect(image_, showInference_);
     if (showTime_) { PS("RS 249") PL(clock() - start) }
 
 
@@ -462,6 +618,7 @@ void RealSenseInterface::getPointCloud(std::vector<float>& points, std::vector<i
     
 
     if (showImage_) cv::imshow("after", image_);
+    cv::imwrite("C:/Users/y4236/Desktop/After.png", image_);
     if (showImage_) cv::waitKey(1);
 
 
@@ -503,15 +660,17 @@ void RealSenseInterface::getPointCloud(std::vector<float>& points, std::vector<i
         
         if (removeOut && isOut) continue;
         if (classId > 0) {
-            class3DPositions_[classId].emplace_back(array<double, 3>({ verts[i].x, verts[i].y, verts[i].z }));
+            class3DPositions_[classId].emplace_back(array<float, 3>({ verts[i].x, verts[i].y, verts[i].z }));
             //一旦Yellow部分抜くために抜ける
             //continue;
         }
+        //else {
+            for (int j = 0; j < 3; j++) color.emplace_back(rgb[j]);
+            points.emplace_back(verts[i].x);
+            points.emplace_back(verts[i].y);
+            points.emplace_back(verts[i].z);
+        //}
 
-        for (int j = 0; j < 3; j++) color.emplace_back(rgb[j]);
-        points.emplace_back(verts[i].x);
-        points.emplace_back(verts[i].y);
-        points.emplace_back(verts[i].z);
 
     }
     if (showTime_) { PS("RS 296") PL(clock() - start) }
