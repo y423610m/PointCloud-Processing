@@ -8,7 +8,20 @@ string(APPEND CMAKE_CXX_FLAGS " /W4")#onnx
 #add_compile_options(-std=c++17)
 
 
-add_compile_options(/bigobj)
+#pointer
+#ツールの姿勢推定して，接触判定する．ポイントクラウド処理ほかにもいろいろ．
+#CoppeliaSimと接続したり，小栗さんロボットと通信したり，ROSから点群受け取ったり．
+
+#tdmaker_for_pc
+#通信遅延発生させるノード
+
+#pcd_maker
+#CADデータ（.obj）からポイントクラウド生成するノード．ROS使ってない
+
+#svm_train
+#マーカー位置補正モデル学習用に用意したやつ
+
+add_compile_options(/bigobj)#プログラム長くなりすぎて必要になった
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp

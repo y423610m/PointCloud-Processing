@@ -1261,13 +1261,13 @@ private:
 				positions_[i] = positions_[i] + arr;
 				while (que[i].size() > len) {
 					positions_[i] = positions_[i] - que[i].front();
-					que[i].pop();
+que[i].pop();
 				}
 				(*cloud)[i].x = positions_[i][0] / que[i].size();
 				(*cloud)[i].y = positions_[i][1] / que[i].size();
 				(*cloud)[i].z = positions_[i][2] / que[i].size();
 			}
-			
+
 		}
 	};
 	std::array<LastToolPose, 2> lastToolPoses_;
@@ -1281,6 +1281,7 @@ private:
 	int cnt = 0;
 	bool show200Frames_ = false;
 	void _detect_contact_with_YOLO() {
+		auto time = clock();
 		//PL("a")
 		if (!enable_[PCL_ID_DetectWithYOLO]) return;
 		if (!initialized_[PCL_ID_DetectWithYOLO]) {
@@ -1293,7 +1294,7 @@ private:
 				int g = rgb % 1000; rgb /= 1000;
 				int r = rgb % 1000; rgb /= 1000;
 				PS("pcl 1195") ES(r) ES(g) EL(b)
-				std::array<int, 3> arr_rgb; arr_rgb[0] = r, arr_rgb[1] = g, arr_rgb[2] = b;
+					std::array<int, 3> arr_rgb; arr_rgb[0] = r, arr_rgb[1] = g, arr_rgb[2] = b;
 				contact_detector_yolo_[i].reset(new ContactDetector2<PointTypeT>(
 					ROSParam::getStringParam("PCL_pcd_target")
 					, ROSParam::getStringParam("PCL_pcd_mask")
@@ -1305,14 +1306,14 @@ private:
 			calibrateRotZ_ = ROSParam::getIntParam("PCL_CalibrateRotZ");
 			show200Frames_ = ROSParam::getIntParam("PCL_Show200Frames");
 			if (calibrateO_ & calibrateRotZ_) calibrateO_ = false;
-			for(int i=0;i<2;i++) showMarkersMeanPosition_[i] = ROSParam::getIntParam("PCL_ShowMarkersMeanPosition"+to_string(i));
+			for (int i = 0; i < 2; i++) showMarkersMeanPosition_[i] = ROSParam::getIntParam("PCL_ShowMarkersMeanPosition" + to_string(i));
 			calibrationYOLO_ = ROSParam::getIntParam("PCL_CalibrationYOLO");
 			showTipPosition_[0] = ROSParam::getIntParam("PCL_ShowTipPosition0");
 			showTipPosition_[1] = ROSParam::getIntParam("PCL_ShowTipPosition1");
 			initialized_[PCL_ID_DetectWithYOLO] = true;
 		}
 
-		for (int i = 0; i < 2; i++) {
+		for (int i = 0; i < 2; i++) {//right, left
 			if (cloud_yolo_[i]->size() != 3) {
 				lastToolPoses_[i].found_ = false;
 				continue;
@@ -1326,6 +1327,8 @@ private:
 
 			lastToolPoses_[i].update2(cloud_yolo_[i]);
 
+			//PS("pcl yolo") PL(clock() - time)
+
 
 			/*
 			RealSenseInterfaceでツール上のマーカー（Yellow, Green）を検出．
@@ -1336,22 +1339,69 @@ private:
 
 			*/
 
+			Eigen::Affine3f transform = Eigen::Affine3f::Identity();
 			//Green->Yellowの方向ベクトル
 			Eigen::Vector3f GY((*cloud_yolo_[i])[1].x - (*cloud_yolo_[i])[2].x, (*cloud_yolo_[i])[1].y - (*cloud_yolo_[i])[2].y, (*cloud_yolo_[i])[1].z - (*cloud_yolo_[i])[2].z);
 			//ツール初期姿勢（y方向正）からの姿勢変化クォータニオン
 			Eigen::Quaternionf q = Eigen::Quaternionf::FromTwoVectors(Eigen::Vector3f::UnitY(), GY);
-
-			//
-			Eigen::Affine3f transform = Eigen::Affine3f::Identity();
 			transform *= q.matrix();
+
+			/*
+			ツールが上向きになるように回転させたい
+			z軸(0,0,1)をtransformさせたときに，z座標が最も高くなる軸周り回転計算．
+			二分探索．単調性を持たなければいけないので，abs(l-r)=r-l<M_PIを満たさないと多分壊れる．
+			*/
+			PointTypeT p;
+			p.x = 0, p.y = 0, p.z = 1;
+			float l = -1.0, r = 1.0, eps = 1e-5, d = 1e-4;
+			CloudPtr a(new Cloud()), b(new Cloud());
+			a->push_back(p);
+			Eigen::Affine3f t;
+			auto f = [&](float angle)->float {
+				t = Eigen::Affine3f::Identity();
+				t.rotate(Eigen::AngleAxisf(angle, Eigen::Vector3f::UnitY()));
+				t = transform * t;
+				pcl::transformPointCloud(*a, *b, t);
+				return (*b)[0].z;
+			};
+			while (f((l + r) / 2) < 0.0) {
+				l += M_PI * 2 / 3;
+				r += M_PI * 2 / 3;
+			}
+			while (r - l > eps) {
+				float mid = (l + r) / 2;
+				if (f(l) >= f(r)) r = mid;
+				else l = mid;
+			}
+			t = Eigen::Affine3f::Identity();
+			t.rotate(Eigen::AngleAxisf(l, Eigen::Vector3f::UnitY()));
+			transform = transform * t;
 			transform.translation() << (*cloud_yolo_[i])[0].x, (*cloud_yolo_[i])[0].y, (*cloud_yolo_[i])[0].z;
-
-			//transform.rotate(Eigen::AngleAxisf(transformation_parameters_[3], Eigen::Vector3f::UnitX()));
-			//transform.rotate(Eigen::AngleAxisf(transformation_parameters_[4], Eigen::Vector3f::UnitY()));
-			//transform.rotate(Eigen::AngleAxisf(transformation_parameters_[5], Eigen::Vector3f::UnitZ()));
-
 			contact_detector_yolo_[i]->transform_init(transform);
+
+			//PS("pcl yolo") PL(clock() - time)
+
+
+			//z軸最低点周りを探索する．
+			array<float, 3> tip = { (*cloud_yolo_[i])[0].x, (*cloud_yolo_[i])[0].y, (*cloud_yolo_[i])[0].z };
+			auto lowest = contact_detector_yolo_[i]->get_lowest_point();
+			//EL(tip);
+			//EL(lowest);
+			if (norm(tip - lowest) < 0.02) {
+				swap(tip, lowest);
+				//PL("change")
+			}
+			//EL(tip);
+			contact_detector_yolo_[i]->set_tip_position(tip);
+
+			//実際に接触判定は別クラス内で行う
 			contact_detector_yolo_[i]->remove_and_detect(cloud_main_);
+
+			//PS("pcl yolo") PL(clock() - time)
+
+
+
+			//以下はデバッグ及びキャリブレーション用
 
 			if (showTipPosition_[i]) {
 				for (int j = 0; j < 3; j++) {
@@ -1371,9 +1421,20 @@ private:
 			}
 
 			//必要に応じて，マーカーなどをMainの点群に追加しておく．
-			if (showMarkersMeanPosition_) for (const auto& p : *cloud_yolo_[i]) {
-				cloud_main_->emplace_back(p);
+			if (showMarkersMeanPosition_[i]) for (const auto& point : *cloud_yolo_[i]) {
+				//cloud_main_->emplace_back(p);
 				//EL(int(cloud_main_->back().a))
+				for (double r = 0.0002; r <= 0.0004; r += 0.0001) {
+					for (double a = 0; a < M_PI * 2; a += 0.02) {
+						for (double b = 0; b < M_PI * 2; b += 0.02) {
+							PointTypeT p = point;
+							p.x += r * cos(a) * sin(b);
+							p.y += r * sin(a) * sin(b);
+							p.z += r * cos(b);
+							cloud_main_->emplace_back(p);
+						}
+					}
+				}
 			}
 
 			if (calibrateO_) {

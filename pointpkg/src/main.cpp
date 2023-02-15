@@ -36,8 +36,8 @@ int main(int argc, char** argv) {
 		ros::init(argc, argv, "pointer");
 		ROSParam::init();
 
-		std::cout << std::fixed << std::setprecision(6);
-		std::cerr << std::fixed << std::setprecision(6);
+		std::cout << std::fixed << std::setprecision(3);
+		std::cerr << std::fixed << std::setprecision(3);
 
 		ros::Rate rate(ROSParam::getIntParam("MAIN_rate"));
 

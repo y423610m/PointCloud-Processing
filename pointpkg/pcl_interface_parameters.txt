@@ -4,9 +4,9 @@ trans_z 0.170264
 trans_ax 1.063250
 trans_ay 3.132030
 trans_az 3.140580
-thresh_min_x -0.356000
+thresh_min_x -0.185000
 thresh_max_x 0.154000
 thresh_min_y -0.284000
 thresh_max_y 0.206000
-thresh_min_z -0.402000
+thresh_min_z -0.070000
 thresh_max_z 0.263000

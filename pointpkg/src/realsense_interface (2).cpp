@@ -58,7 +58,6 @@ RealSenseInterface::RealSenseInterface(){
     }
     enableCompensateMarkersDistance_ = ROSParam::getIntParam("RS_EnableCompensateMarkersDistance");
 
-    enableThread_ = ROSParam::getIntParam("RS_EnableThread");
 
     showTime_ = ROSParam::getIntParam("RS_ShowTime");
     showImage_ = ROSParam::getIntParam("RS_ShowImage");
@@ -68,13 +67,18 @@ RealSenseInterface::RealSenseInterface(){
     //幅，高さ，奥行
     threshold_ = { 0.5, 0.5, 0.7 };
 
+
+    //並列処理予定だったが，しないほうが速い...
+    ////process thread loop
+    //thread t([&]() {
+    //    while (true) {
+    //        this->_process();
+    //        PL("run")
+    //    }
+    //    });
+    //swap(thread_, t);
+
     initialized_ = true;
-
-    //thread_.push_back(thread([&]() {
-    //    this->prepare();
-    //    //EL("call prepare")
-    //    }));
-
     cerr << "RealSenseInterface constructed" << endl;
     return;
 
@@ -120,7 +124,6 @@ void RealSenseInterface::_setFilters() {
     //defined in rs_processing.hpp 
     /// sample rs-post-processing.h
     //https://github.com/IntelRealSense/librealsense/blob/master/doc/post-processing-filters.md
-    //https://dev.intelrealsense.com/docs/depth-post-processing
     //filters
     rs2::decimation_filter dec_filter;  // Decimation - reduces depth frame density
     rs2::threshold_filter thr_filter;   // Threshold  - removes values outside recommended range
@@ -533,14 +536,7 @@ void RealSenseInterface::_calcPositions(std::vector<float>& points, std::vector<
             }
             else newV = newV + t_g;
 
-            //接触判定用補正．若干カメラ側に寄せる
-            if (true) {
-                auto dV = newV;
-                dV = dV * 0.001 / norm(dV);
-                newV[0] += -dV[0];
-                newV[1] += -dV[1];
-                //newV[2] += -dV[2];
-            }
+
 
             //newV
             int rgb[] = { 255, 255, 0 };
@@ -562,35 +558,8 @@ void RealSenseInterface::_calcPositions(std::vector<float>& points, std::vector<
 }
 
 void RealSenseInterface::getPointCloud(std::vector<float>& points, std::vector<int>& color) {
-    
-    if (enableThread_) {
-        if (thread_.size() == 0) {
-            thread_.push_back(thread([&]() {
-                this->_prepare();
-                }));
-        }
-        thread_.back().join();
-        thread_.pop_back();
-    }
-    else {
-        this->_prepare();
-    }
-
-    swap(points, this->points_);
-    swap(color, this->color_);
-
-    if (enableThread_) {
-        thread_.push_back(thread([&]() {
-            this->_prepare();
-            }));
-    }
-}
-
-
-
-void RealSenseInterface::_prepare(){
     if (!initialized_) return;
-    //EL("prepare called")
+
     auto start = clock();
 
     this->_process();
@@ -601,14 +570,8 @@ void RealSenseInterface::_prepare(){
     rs2::frame color_frame;
     //mtx_.lock();
     //while(depth_que_.capacity()==0){}
-    if (!depth_que_.poll_for_frame(&depth_frame)) {
-        PL("depth_frame is empty");
-        return;
-    }
-    if (!color_que_.poll_for_frame(&color_frame)) {
-        PL("color_frame is empty");
-        return;
-    }
+    if (!depth_que_.poll_for_frame(&depth_frame)) return;
+    if (!color_que_.poll_for_frame(&color_frame)) return;
     //mtx_.unlock();
 
     if (showTime_) { PS("RS 242") PL(clock() - start) }
@@ -622,19 +585,18 @@ void RealSenseInterface::_prepare(){
 
 	//if (!color_frame) color_frame = frames.get_infrared_frame();
 	pc_.map_to(color_frame);
-	rs2points_ = pc_.calculate(depth_frame);
+	points_ = pc_.calculate(depth_frame);
 
     //EL(points_.size())
 
-    if (rs2points_.size() == 0) return;
-    //EL(rs2points_.size())
+    if (points_.size() == 0) return;
 
 	//auto verts = points_.get_vertices();
  //   auto texture_data = reinterpret_cast<const uint8_t*>(color_frame.get_data());
  //   const auto texcoords = points_.get_texture_coordinates();
-    const rs2::vertex* verts = rs2points_.get_vertices();//点群の座標
+    const rs2::vertex* verts = points_.get_vertices();//点群の座標
     const uint8_t* texture_data = reinterpret_cast<const uint8_t*>(color_frame.get_data());//rgbrgbrgb...一次元配列
-    const rs2::texture_coordinate* texcoords = rs2points_.get_texture_coordinates();//点が画角のどのあたりか
+    const rs2::texture_coordinate* texcoords = points_.get_texture_coordinates();//点が画角のどのあたりか
     
 
     
@@ -671,8 +633,8 @@ void RealSenseInterface::_prepare(){
     if (showImage_) cv::waitKey(1);
 
 
-    if (points_.size()) points_.clear();
-    if (color_.size()) color_.clear();
+    if (points.size()) points.clear();
+    if (color.size()) color.clear();
     //
     double min_distance = 1e-6;
     //RGBデータのない周辺データを除く？
@@ -681,7 +643,7 @@ void RealSenseInterface::_prepare(){
     bool isOut = false;
     int classId = -2;
     //////////////////////////////////Yellow, Greenでなければ，格納
-    int sz = rs2points_.size();
+    int sz = points_.size();
     for (int i = 0; i < sz; ++i) {
         //カメラに近すぎたら削除しておく
         if (verts[i].z <= min_distance) continue;
@@ -714,10 +676,10 @@ void RealSenseInterface::_prepare(){
             if(!showMarkers_) continue;
         }
         //else {
-        for (int j = 0; j < 3; j++) this->color_.emplace_back(rgb[j]);
-        points_.emplace_back(verts[i].x);
-        points_.emplace_back(verts[i].y);
-        points_.emplace_back(verts[i].z);
+        for (int j = 0; j < 3; j++) color.emplace_back(rgb[j]);
+        points.emplace_back(verts[i].x);
+        points.emplace_back(verts[i].y);
+        points.emplace_back(verts[i].z);
         //}
 
 
@@ -725,7 +687,7 @@ void RealSenseInterface::_prepare(){
     if (showTime_) { PS("RS 296") PL(clock() - start) }
 
 
-    _calcPositions(points_, color_);
+    _calcPositions(points, color);
     if (showTime_) { PS("RS 398") PL(clock() - start) }
 
 
@@ -739,7 +701,6 @@ void RealSenseInterface::_prepare(){
 
     //EL(points.size());
     //EL(color.size());
-    //EL("prepare done")
 }
 
 

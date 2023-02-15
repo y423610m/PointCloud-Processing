@@ -53,21 +53,20 @@ private:
 	bool savePictures_ = false;
 	string picturesFolder_;
 
-	//•À—ñˆ—
-	std::vector<std::thread> thread_;
-	std::mutex mtx_, mtx2_;
-	vector<float> points_;
-	vector<int> color_;
-	bool enableThread_ = false;
-
 	//RealSenseŠÖŒW
 	rs2::pipeline pipe_;
 	rs2::pointcloud pc_;
-	rs2::points rs2points_;
+	rs2::points points_;
 	rs2::config cfg_;
 
 	rs2::frame_queue depth_que_;
 	rs2::frame_queue color_que_;
+
+	//•À—ñˆ——\’è‚¾‚Á‚½‚ªC‚µ‚È‚¢‚Ù‚¤‚ª‘¬‚¢...
+	std::vector<std::thread> thread_;
+	std::mutex mtx_, mtx2_;
+	vector<int> points_, color_;
+	bool pointcloud_is_ready_ = false;
 
 	std::vector<filter_options> filters_;
 	std::vector<float> threshold_;
@@ -80,7 +79,7 @@ private:
 	//(W,H) = (640,480),(848,480), (1280,720)
 	int RSDepthHeight_ = 720;
 	int RSDepthWidth_ = 1280;
-	int RSFps_ = 30;
+	int RSFps_ = 15;
 
 
 
@@ -137,13 +136,11 @@ private:
 	inline void RealSenseInterface::_getTextureColor(std::array<uint8_t, 3>& rgb, const rs2::video_frame& texture, const uint8_t* texture_data, float u, float v, bool& isOut, int& classId);
 
 
-	void _prepare();
-
-
 public:
 	RealSenseInterface();
 	~RealSenseInterface();
 
+	//void prepare();
 	void getPointCloud(std::vector<float>& points, std::vector<int>& color);
 	void getPointCloud2(std::vector<float>& points, std::vector<int>& color);
 };
